@@ -1,0 +1,19 @@
+[project]
+name = "delivery-flow"
+version = "0.2.0"
+description = "交付型敏捷 AI 研发工作流（标准模式）"
+authors = [{name = "Fred Simas"}]
+requires-python = ">=3.8"
+license = {text = "MIT"}
+readme = "README.md"
+
+[project.scripts]
+delivery = "delivery_flow.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["scripts"]
+include = ["delivery_flow*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["scripts", "."]
+testpaths = ["tests/unit"]
