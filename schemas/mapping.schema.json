@@ -22,7 +22,34 @@
                 "guid": {"type": "string", "minLength": 1},
                 "subtasks": {
                   "type": "object",
-                  "additionalProperties": {"type": "string", "minLength": 1}
+                  "description": "本地子任务 ID → 飞书 task_id。value 可以是裸字符串（旧格式）或 {task_id, synced?} 对象（新格式）。",
+                  "additionalProperties": {
+                    "oneOf": [
+                      {"type": "string", "minLength": 1},
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["task_id"],
+                        "properties": {
+                          "task_id": {"type": "string", "minLength": 1},
+                          "synced": {
+                            "type": "object",
+                            "description": "推送成功时回写：当时的内容指纹，用于与 desired-tasks.json 对比判定 update/skip",
+                            "additionalProperties": false,
+                            "required": ["content_hash", "synced_at", "what", "dod", "deliverable"],
+                            "properties": {
+                              "content_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                              "synced_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+                              "what": {"type": "string"},
+                              "dod": {"type": "string"},
+                              "deliverable": {"type": "string"},
+                              "spec_ref": {"type": "string"}
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
                 }
               },
               "additionalProperties": true

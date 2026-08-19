@@ -6,13 +6,13 @@
 
 ## 它解决什么
 
-需求接入 → BMAD 分析立项 → SPEC / PRD / UX → HTML 原型 → **客户签字** → 架构 / 技术就绪 → Story 拆解进飞书 → Superpowers 研发 → **AI 评测** → 测试 → **客户验收**。全程有依据、有关卡。`project-progress.yaml` 持久化记录当前所处阶段，由关卡 skill 自动写入。
+商机确认 → 方案/报价 → **签约** → 需求接入 → BMAD 分析立项 → SPEC / PRD / UX → HTML 原型 → **客户签字** → 四层架构（业务/产品/技术/数据）/ 技术就绪 → Story 拆解进飞书 → Superpowers 研发 → **AI 评测** → 测试 → **客户验收**。全程有依据、有关卡。`project-progress.yaml` 持久化记录当前所处阶段，由关卡 skill 自动写入。
 
 ## 标准模式（本模块的定位）
 
 **BMAD 的产品与规划能力全开**：分析研究、SPEC、PRD、UX、架构、技术就绪检查和 Story 拆解都优先复用 BMAD。**Superpowers** 负责研发阶段的 TDD、调试和验证。飞书是执行状态唯一写端，本地 `sprint-status.yaml` 仅由 `delivery-sprint-sync` 从飞书单向拉取，作为只读镜像。
 
-本仓库提供的是 Markdown 工作流规范、模板和角色路由，不是带运行时代码的项目管理系统；飞书 API、评测执行器和自动门禁依赖外部技能或人工执行。
+本仓库提供的是 Markdown 工作流规范、模板、角色路由和本地只读 CLI（`check / trace / status / dry-run / progress / plan / governance / report`）。项目计划和治理登记属于本模块，真实飞书 API、评测执行器和自动门禁执行仍依赖外部技能或人工执行。
 
 ## 分层设计（只建市面上没有的）
 
@@ -22,6 +22,9 @@ Layer0 基座（安装，不自建）
   └─ Superpowers      研发内功：TDD / 系统化调试 / 写计划 / 验证
 
 Layer1 本模块差异化交付能力（补 BMAD 未覆盖的业务关卡与编排）
+  ├─ delivery-presales       售前编排：商机确认 → 方案/报价 → 谈判跟进（生成 Trace 根）
+  ├─ delivery-deal-gate      签约关卡：合同签约冻结商务基线，产出立项包
+  ├─ delivery-crm-sync       商机 CRM：商机/客户/合同落飞书多维表格
   ├─ delivery-client-gate      入口：客户签字关卡（未签字不进开发）
   ├─ delivery-feishu-sync      拆任务：故事 → 飞书「清单>父任务>子任务」，飞书=执行真源
   ├─ delivery-sprint-sync       状态镜像：飞书 → 本地 sprint-status.yaml（只读）
@@ -34,16 +37,34 @@ Layer2 上手编排（”装上就跑”入口）
   └─ delivery-onboarding   识别角色 → 确保基座就位 → 发放角色依据 → 路由到对应阶段
 ```
 
-## 与 BMAD 的分工（不重造轮子）
+### 当前 Skill 清单（20 个）
+
+- **上手与编排**：`delivery-bootstrap`、`delivery-onboarding`
+- **售前与签约**：`delivery-presales`、`delivery-crm-sync`、`delivery-deal-gate`
+- **需求到研发**：`delivery-prototype-html`、`delivery-client-gate`、`delivery-feishu-sync`、`delivery-sprint-sync`
+- **质量与交付**：`delivery-eval-loop`、`delivery-acceptance-gate`
+- **项目管理与治理**：`delivery-plan`、`delivery-governance`、`delivery-phase-gate`、`delivery-report`
+- **本地只读检查**：`delivery-check`、`delivery-trace`、`delivery-status`、`delivery-dry-run`、`delivery-step-status`（进度巡检 + 撤回辅助）
+
+> Skill 数量以仓库 `skills/*/SKILL.md` 为准；BMAD、Superpowers、`lark-*` 属于外部依赖，不计入本插件数量。
+
+
 
 | 能力 | 由谁提供 |
 |---|---|
 | 角色 agent（分析/PM/UX 等）+ SPEC / PRD / Story 模板 | BMAD |
 | 项目宪法（AI 必守规则）| BMAD `generate-project-context` → `project-context.md` |
 | 研发内功（TDD/调试/验证）| Superpowers |
+| **售前编排（商机确认 → 方案/报价 → Trace 根）** | **本模块 delivery-presales** |
+| **合同签约关卡（冻结商务基线、产立项包）** | **本模块 delivery-deal-gate** |
+| **商机/客户/合同飞书 CRM 同步** | **本模块 delivery-crm-sync** |
 | **客户签字关卡（入口）** | **本模块 delivery-client-gate** |
 | **飞书任务 SSOT 同步（飞书=执行真源）** | **本模块 delivery-feishu-sync**（编排 lark-* skills）|
 | **飞书状态本地只读镜像** | **本模块 delivery-sprint-sync** |
+| **项目计划层（阶段/依赖/容量）** | **本模块 delivery-plan** |
+| **风险/问题/变更/决策登记** | **本模块 delivery-governance** |
+| **阶段级 readiness/QA/验收门禁** | **本模块 delivery-phase-gate** |
+| **项目健康报告** | **本模块 delivery-report** |
 | **HTML 交互原型编排** | **本模块 delivery-prototype-html**（读取 bmad-ux 产物）|
 | **AI 输出评测内循环** | **本模块 delivery-eval-loop** |
 | **客户验收关卡（出口）** | **本模块 delivery-acceptance-gate** |
@@ -53,7 +74,7 @@ Layer2 上手编排（”装上就跑”入口）
 
 ## 安装
 
-> **最快方式**：在 Claude Code 中说 **"装 delivery-flow"** 或 **"bootstrap"**，`delivery-flow` 会自动引导完成环境搭建，无需手动查阅文档。
+> **最快方式**：在 Claude Code 中说 **"装 delivery-flow"** 或 **"bootstrap"**，`delivery-bootstrap` 会检查四层依赖并引导你完成安装；它不会替你调用外部安装器、飞书 API 或自动填充业务证据。
 
 📖 **快速安装指南** → 详见 [`安装指南.md`](安装指南.md)。含 Claude Code 一键安装和其他工具（Codex / Cursor / Windsurf）分步指引。
 
@@ -63,7 +84,7 @@ Layer2 上手编排（”装上就跑”入口）
 
 ### 快速开始（按工具）
 
-**Claude Code**：在你的项目目录打开 Claude Code，说"装 delivery-flow"，自动完成全部安装。
+**Claude Code**：在你的项目目录打开 Claude Code，说"装 delivery-flow"，由 `delivery-bootstrap` 检查并引导 L1 插件、L2 BMAD、L3 飞书（可选）和 L4 项目实例四层配置。
 
 **Codex / Cursor / Windsurf**：
 ```bash
@@ -77,7 +98,102 @@ npx bmad-method install
 # 3. 让 AI 帮你创建配置文件（参考 docs/跨工具安装指南.md）
 ```
 
-## 从零开始：完整使用场景
+### 第一步：选运行模式（必须）
+
+插件装好后，**第一步**永远是让 AI 问你要走哪种模式，由你（人）选，不是 AI 替你判断：
+
+| 模式 | 适用场景 | 关键差异 |
+|---|---|---|
+| **交付模式**（默认） | 复杂/正式/风险高、需要客户签字确认 | 每步都要你确认产物方向；每个关卡都签字才推进；不难走的步骤不允许跳过 |
+| **快速模式** | 紧急/售前演示/PoC/内部工具 | 合并可跳过步骤；产物可草稿态直接推飞书；关卡产物允许标记 `degraded-consistency` |
+
+选完模式后，**交付模式还会再问复杂度**（低/中/高），决定要不要走完整治理登记。
+
+> **为什么必须有这一步**：AI 不知道项目紧急度和精度要求。如果你不说，AI 可能按交付模式走慢节奏，要么按快速模式做出来的东西不能用于正式交付。**这一步直接决定后续所有 step 的执行强度**，并写入 `project-progress.yaml` 的 `meta.mode` 事后可追溯。
+
+**完整对比表**：
+
+| 触发场景 | 选哪个 |
+|---|---|
+| 客户已签字、差最后上线 | 交付模式 |
+| 售前给客户演示 2 周后签约 | 快速模式 |
+| 内部工具/同事需求 | 快速模式 |
+| PoC 验证可行性 | 快速模式 |
+| 合规项目/数据迁移 | 交付模式 |
+| 1-2 个月定制项目 | 交付模式 |
+
+**怎么选**：如果犹豫不决，先选**交付模式**（更安全）。后续任何时候都可以用 `python delivery.py revert --step <阶段>` 撤回重来。
+
+## 本地 CLI 与 dry-run
+
+CLI 只读、不调用网络、不写项目文件。两种调用方式二选一：
+
+**方式 A（推荐）**：`pip install -e .` 后直接用 `delivery` 命令：
+```bash
+pip install -e /path/to/delivery-flow
+delivery check --root <项目根> --json
+delivery trace --root <项目根> --json
+delivery status --root <项目根> --json
+delivery dry-run --root <项目根> --json
+delivery progress --root <项目根> --json
+delivery plan --root <项目根> --json
+delivery governance --root <项目根> --json
+delivery report --root <项目根> --json
+delivery revert --root <项目根> [--step <stage_id>] --json
+```
+
+**方式 B（未安装）**：用仓库根的 `delivery.py` 启动器：
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" check --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" trace --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" status --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" dry-run --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" progress --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" plan --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" governance --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" report --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" revert --root <项目根> [--step <stage_id>] --json
+```
+
+`check` 会检查四态证据（`pass / unknown / fail`）、关卡顺序和已启用的计划/治理门禁；模板或缺证据不会算通过。`plan` 读取 `project-plan.json`，计算当前阶段、可开始阶段和依赖阻塞；`governance` 读取 `project-governance.json`；`report` 聚合计划、治理、流水线和飞书只读镜像。`dry-run` 只生成 `create / update / skip / orphan / create_with_review` 计划（基于 `desired-tasks.json` × `_映射表.json` 二维判定），真实飞书写入仍由外部 `lark-*` 技能负责。`trace` 是**文件级产物链完整性检查**（不解析 SPEC Capability / Story AC 字段语义）。
+
+### 进度巡检与撤回（让 AI 不擅自推进）
+
+> **设计初衷**：解决"提供材料后 AI 直接把所有产物生成完、跳过用户确认"的问题。所有 skill 顶部都加了 `<execution_contract>` 约束，CLI 也提供三个常用查询。
+
+**三个高频查询**：
+
+```bash
+# 1. 现在到哪了
+python delivery.py progress --root . --json
+# → 返回 current_stage / current_status / next_stage / stages
+#    还附带 next_action_suggestion.suggested_question（AI 可直接复述给用户的中文问句）
+
+# 2. 下一步做什么（含阻塞项）
+python delivery.py dry-run --root . --json
+# → 列出 create / update / skip / orphan 操作 + 完整 blocked_by
+
+# 3. 撤回上一步（产品/合同/技术就绪等任意阶段可撤回）
+python delivery.py revert --root .                # 回退 project-progress.yaml 的 current_stage
+python delivery.py revert --root . --step deal_gate  # 精确指定阶段
+```
+
+**三个核心纪律**（写在每个 SKILL.md 的 `<execution_contract>` 头部）：
+
+1. **逐步汇报、逐步确认**：每个 `<step>` 的 `<action>` 开始前，AI 必须先用一句话告诉用户"我要做 X、会产出 Y"，等用户明确说"继续"/"OK"再执行。**禁止**把多个 step 合并执行。
+2. **不确定就停下**：遇到模糊、缺信息的情况必须问用户，不替用户拍板。
+3. **产物默认草稿态**：写入正式路径的产物先写到 `<name>.draft.<ext>`，用户确认后 `python delivery.py revert --step <stage>` 或手工 mv。
+
+`delivery-step-status` skill 把以上三个查询封装成 AI 可直接调用的剧本（用户说"现在到哪了 / 下一步 / 撤回"即可触发）。
+
+## 当前未实现
+
+- 真实飞书 API 写入适配器（CLI 不创建、更新或删除飞书任务）
+- AI 评测 runner（CLI 不执行 Tier1/Tier2 评测）
+- 自动门禁执行器（CLI 不替客户签字、专家判断或自动推进阶段）
+- 自动迁移旧项目文件布局（只读兼容根目录、阶段目录、`_meta`）
+
+
 
 ### 场景一：全新电脑，客户刚通过微信发了文件
 
@@ -294,6 +410,7 @@ AI：[调用 Superpowers TDD 流程]
 
 | 节点 | 谁触发 | 说明 |
 |---|---|---|
+| 合同签约 | 售前/商务 | 未签约不进需求接入 |
 | 客户签字 | 项目经理 | 未签字不进开发 |
 | 技术就绪检查 | 架构师/技术 Lead | 不达标不拆任务 |
 | AI 评测 | AI 工程师 | Tier1 不达标不进测试 |

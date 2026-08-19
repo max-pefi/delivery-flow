@@ -7,39 +7,68 @@
   "properties": {
     "project": {
       "type": "string",
-      "description": "项目名称，与 project-context.md 一致"
+      "description": "项目名称，与 project-context.md 一致；首次 bootstrap 时由用户填入"
     },
     "trace_id": {
       "type": "string",
-      "description": "商机编号（Trace 根），格式 OPP-YYYY-NNN，由 delivery-presales 生成、deal-gate 放行时写入；无售前阶段的存量项目可留空",
+      "description": "商机编号（Trace 根），格式 OPP-YYYY-NNN，由 delivery-presales 生成、deal-gate 放行时写入；无售前阶段的存量项目留空字符串",
       "pattern": "^(OPP-\\d{4}-\\d+)?$"
     },
     "current_stage": {
-      "type": "string",
-      "description": "当前所处阶段（最新 in_progress 的阶段）",
-      "enum": [
-        "opportunity",
-        "proposal",
-        "deal_gate",
-        "requirements",
-        "analysis",
-        "prd",
-        "ux",
-        "prototype",
-        "client_gate",
-        "architecture",
-        "tech_readiness",
-        "story_breakdown",
-        "feishu_sync",
-        "development",
-        "eval",
-        "qa",
-        "acceptance_gate"
+      "description": "当前所处阶段。null 表示验收完成态（acceptance_gate 已通过，流程结束）。",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "opportunity",
+            "proposal",
+            "deal_gate",
+            "requirements",
+            "analysis",
+            "prd",
+            "ux",
+            "prototype",
+            "client_gate",
+            "architecture",
+            "tech_readiness",
+            "story_breakdown",
+            "feishu_sync",
+            "development",
+            "eval",
+            "qa",
+            "acceptance_gate"
+          ]
+        }
       ]
     },
     "stages": {
       "type": "object",
-      "description": "各阶段状态，key 为阶段标识",
+      "description": "各阶段状态，key 为阶段标识。architecture 阶段包含四层架构：业务架构 → 产品架构 → 技术架构 → 数据架构",
+      "minProperties": 17,
+      "propertyNames": {
+        "enum": [
+          "opportunity",
+          "proposal",
+          "deal_gate",
+          "requirements",
+          "analysis",
+          "prd",
+          "ux",
+          "prototype",
+          "client_gate",
+          "architecture",
+          "tech_readiness",
+          "story_breakdown",
+          "feishu_sync",
+          "development",
+          "eval",
+          "qa",
+          "acceptance_gate"
+        ]
+      },
       "additionalProperties": {
         "type": "object",
         "required": ["status"],
@@ -50,15 +79,17 @@
           },
           "started_at": {
             "type": "string",
-            "description": "阶段开始时间 (YYYY-MM-DD)"
+            "description": "阶段开始时间 (YYYY-MM-DD)",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "completed_at": {
             "type": "string",
-            "description": "阶段完成时间 (YYYY-MM-DD)"
+            "description": "阶段完成时间 (YYYY-MM-DD)",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "gate_evidence": {
             "type": "string",
-            "description": "关卡通过的证据文件名（仅关卡阶段）"
+            "description": "关卡通过的证据文件名（仅关卡阶段 deal_gate/client_gate/acceptance_gate 等使用）"
           },
           "note": {
             "type": "string",

@@ -1,7 +1,27 @@
 ---
+
 name: delivery-feishu-sync
 description: 把用户故事拆成飞书「清单>父任务>子任务」三层结构，团队从飞书领活干；飞书是执行状态的唯一真源。强制 SSOT 与任务三要素。当用户说"推飞书"、"同步飞书"、"拆任务进飞书"、"刷新看板"、"feishu sync"时使用。
 ---
+<execution_contract>
+本 skill 是「逐步剧本」而非「待办清单」。任何 AI 在执行本 skill 时必须遵守：
+
+1. **逐步汇报、逐步确认**：每个 `<step>` 的 `<action>` 开始前，必须先用一句话告诉用户
+   "我现在要做 X，会产出 Y"，等用户明确确认（说"继续"/"OK"/"确认"等）后再执行。
+   **禁止**把多个 step 合并执行。**禁止**"先全部做完再统一汇报"。
+
+2. **不确定就停下**：遇到模糊、缺信息、多种合理方案的情况，必须停下来问用户，
+   **不得替用户做决定**。
+
+3. **契约交接禁止记忆交接**：每步执行前必须重新读相关源文件/schema/产物，
+   不得凭上一步的"印象"直接产出（见 ADR 0009）。
+
+4. **产物默认草稿态**：所有写入正式路径的产物，先写到 `<name>.draft.<ext>`，
+   等用户确认后再 mv 到正式路径。
+
+5. **关卡产物不动**：本 skill 产出的关卡结论（客户签字、技术就绪、验收）必须由真人/真合同触发，
+   AI 只生成**待签件**和**检测是否已签**，不伪造签字。
+</execution_contract>
 
 # 飞书任务 SSOT 同步（delivery-feishu-sync）
 
@@ -44,21 +64,25 @@ description: 把用户故事拆成飞书「清单>父任务>子任务」三层�
 
 <workflow>
 
-<step n="1" goal="校验前置">
-  <action>确认已过 delivery-client-gate（范围已签字）。未过则停止并提示先过客户关。</action>
-  <action>读取 stories + SPEC.md。逐条校验三要素齐全：做什么 / DoD（引 AC）/ 交付物。缺失则回退补齐，不推残缺任务。</action>
-  <action>读取 `_映射表.json`（不存在则新建空表）。</action>
+<step n="1" goal="门禁：先跑 CLI，读退出码">
+    <action>**强制前置**：运行 `python "${CLAUDE_PLUGIN_ROOT}/delivery.py" check --root . --json`。退出码 0 才允许继续；非 0 立即停止并把 `findings` 原样打印给用户。</action>
+    <action>门禁要求：客户确认放行（gate.client=pass）+ 四层架构齐全 + readiness 报告 pass + project-progress.tech_readiness=done + 全部 Story 三要素齐全 + 映射表不存在或 mapping.valid=pass。</action>
+    <action>确认已过 delivery-client-gate（范围已签字）。</action>
+    <action>读取 stories + SPEC.md。逐条校验三要素齐全：做什么 / DoD（引 AC）/ 交付物。缺失则回退补齐，不推残缺任务。</action>
+    <action>读取 `_映射表.json`（不存在则新建空表）。</action>
 </step>
 
-<step n="2" goal="映射到三层结构">
+<step n="2" goal="生成 desired-tasks.json 并映射到三层结构">
   <action>epic/模块 → 清单；story → 父任务。</action>
   <action>把每个 story 拆成「可独立完成的工作单元」做子任务——不机械等于 AC 条数。子任务标题=做什么；描述=DoD（引 AC 编号）+交付物。</action>
+  <action>写入 `<项目根>/desired-tasks.json`（schema 见 `schemas/desired-tasks.schema.json`）。每条任务含 `local_id / tasklist / parent_task / what / dod / deliverable / spec_ref / content_hash`，其中 `content_hash` 由 what/dod/deliverable/spec_ref 四字段 SHA-256 生成（顺序固定 + sort_keys，跨进程稳定）。</action>
   <action>比对映射表：已存在的跳过或更新，不重复创建（幂等）。</action>
 </step>
 
 <step n="3" goal="推送飞书">
   <action>用 lark-task 建清单与父/子任务；用 lark-base 确保「阶段状态」单选字段存在并挂看板视图。</action>
-  <action>新建任务阶段状态默认「待开发」。回写 task_id 到 `_映射表.json`。</action>
+  <action>新建任务阶段状态默认「待开发」。</action>
+  <action>推送成功后回写 `_映射表.json` 的 subtasks：新格式 `{task_id, synced: {content_hash, synced_at, what, dod, deliverable, spec_ref}}`（旧格式裸 string 仍可读，dry-run 会标 create_with_review）。</action>
   <action>dry-run 模式只打印将创建的结构，不实际写飞书（供预演）。</action>
 </step>
 

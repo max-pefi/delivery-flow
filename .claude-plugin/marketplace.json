@@ -1,10 +1,13 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "delivery-flow-marketplace",
   "owner": {
     "name": "Fred Simas"
   },
   "description": "交付型敏捷 AI 研发工作流插件市场",
-  "version": "0.1.0",
+  "metadata": {
+    "version": "0.1.0"
+  },
   "plugins": [
     {
       "name": "delivery-flow",
@@ -13,9 +16,11 @@
     },
     {
       "name": "superpowers",
-      "source": "obra/superpowers",
-      "description": "研发内功基座：TDD / 系统化调试 / quick-dev / code-review，delivery-flow 研发环节的执行框架。安装后研发角色从飞书领活直接进入 Superpowers 工作流。",
-      "required": true
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers"
+      },
+      "description": "研发内功基座：TDD / 系统化调试 / quick-dev / code-review，delivery-flow 研发环节的执行框架。安装后研发角色从飞书领活直接进入 Superpowers 工作流。"
     }
   ]
 }

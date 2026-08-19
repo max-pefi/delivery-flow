@@ -1,0 +1,10 @@
+{
+  "project": "项目名称",
+  "phase": "phase-01",
+  "conclusion": "pending",
+  "test_scope": ["测试范围"],
+  "regression_scope": [],
+  "evidence": ["测试报告或流水线链接"],
+  "defects": [],
+  "notes": ""
+}

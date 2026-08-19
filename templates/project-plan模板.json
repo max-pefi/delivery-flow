@@ -1,0 +1,22 @@
+{
+  "project": "项目名称",
+  "version": "v0.1",
+  "team_size": 2,
+  "updated_at": "YYYY-MM-DD",
+  "current_phase": null,
+  "phases": [
+    {
+      "id": "phase-01",
+      "name": "阶段名称",
+      "status": "pending",
+      "dependencies": [],
+      "parallel_with": [],
+      "milestones": ["阶段交付物"],
+      "epics": [],
+      "owner": null,
+      "completion_criteria": ["可独立验收的完成标准"],
+      "gate_evidence": [],
+      "notes": ""
+    }
+  ]
+}

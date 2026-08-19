@@ -1,7 +1,27 @@
 ---
+
 name: delivery-acceptance-gate
 description: 乙方交付的客户验收关卡（出口关卡，与 client-gate 对称）。所有故事完成、评测放行、QA 通过后，对着已签字的范围快照逐条核对 KPI/DoD，取得客户验收签字。当用户说"客户验收"、"验收关卡"、"交付验收"、"acceptance gate"时使用。
 ---
+<execution_contract>
+本 skill 是「逐步剧本」而非「待办清单」。任何 AI 在执行本 skill 时必须遵守：
+
+1. **逐步汇报、逐步确认**：每个 `<step>` 的 `<action>` 开始前，必须先用一句话告诉用户
+   "我现在要做 X，会产出 Y"，等用户明确确认（说"继续"/"OK"/"确认"等）后再执行。
+   **禁止**把多个 step 合并执行。**禁止**"先全部做完再统一汇报"。
+
+2. **不确定就停下**：遇到模糊、缺信息、多种合理方案的情况，必须停下来问用户，
+   **不得替用户做决定**。
+
+3. **契约交接禁止记忆交接**：每步执行前必须重新读相关源文件/schema/产物，
+   不得凭上一步的"印象"直接产出（见 ADR 0009）。
+
+4. **产物默认草稿态**：所有写入正式路径的产物，先写到 `<name>.draft.<ext>`，
+   等用户确认后再 mv 到正式路径。
+
+5. **关卡产物不动**：本 skill 产出的关卡结论（客户签字、技术就绪、验收）必须由真人/真合同触发，
+   AI 只生成**待签件**和**检测是否已签**，不伪造签字。
+</execution_contract>
 
 # 客户验收关卡（delivery-acceptance-gate）
 
@@ -55,7 +75,7 @@ description: 乙方交付的客户验收关卡（出口关卡，与 client-gate 
   <action>客户在验收报告签字（形式与时间留痕，同 client-gate）。</action>
   <check if="已签字且全通过">
     <action>关卡状态「已交付」。提示收尾：归档、转运维、（如有）回款依据。</action>
-    <action>**写入进度**：更新 `project-progress.yaml`，将 `acceptance_gate` 阶段标记为 `done` + `completed_at`，`current_stage` 留空（流程完成）。</action>
+    <action>**写入进度**：更新 `project-progress.yaml`，将 `acceptance_gate` 阶段标记为 `done` + `completed_at`，`current_stage` **置为 `null`（验收完成态，schema 允许 null）**。**若文件不存在，不要自己复制模板**——告诉用户先跑 `delivery-bootstrap` 完成 L4 初始化。</action>
   </check>
   <check if="未签字或部分通过">
     <action>关卡状态「未交付」。记录未决项、责任方、解决时限。项目不得标记完成。</action>

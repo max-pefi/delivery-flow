@@ -1,34 +1,59 @@
 # Changelog
 
+## v0.2.0 (2026-08-07)
+
+### Added
+
+- **关卡结论契约**：三个关卡模板（客户确认/验收/评测）统一为「命名字段 + 全角/半角冒号 + 值」格式，解析器只读命名字段不做全文语义猜测。三态归一化：`pass / conditional / fail / unknown`，「有条件放行」不再误判为 pass。
+- **11 个真实模板回归测试**：直接读 `skills/*/templates/*.md` 原文，校验 fill/parse 往返（placeholders → 结论字段提取），含「正文含反向词但结论行正向」的 codex 明确回归用例。
+- **progress 合法性接入 CLI**：`current_stage_summary()` 读取 `project-progress.yaml` 后立即调用 `validate_progress()`，错误带 `fix_hint`，CLI 退出码 2。模板默认 `requirements.status: in_progress`（不再与 `current_stage` 冲突）。
+- **全量 Story + 四层架构校验**：`check_project()` 用 `find_all` 校验所有 Story 三要素，缺失任意一份即 `fail`；四层架构（业务/产品/技术/数据）必须全部存在。
+- **飞书写入前可执行门禁**：新增 `order.arch-before-feishu` / `order.readiness-report-before-feishu` / `order.progress-tech-readiness-done-before-feishu` / `order.story-complete-before-feishu` 四项检查。`delivery-feishu-sync` step 1 改为强制先跑 `delivery.py check --json` 读退出码。
+- **desired-task manifest** (`schemas/desired-tasks.schema.json` + `desired-tasks.json`)：PM 意图的本地写端 source of truth，`content_hash`（what/dod/deliverable/spec_ref 四字段 SHA-256）判定 update/skip。
+- **mapping 向后兼容**：`_映射表.json` 的 `subtasks[local_id]` 允许 string（旧格式）或 `{task_id, synced?}`（新格式），无需迁移脚本。
+- **dry-run 重写为 manifest-driven**：基于 `manifest × mapping` 二维判定五态 `create / update / skip / orphan / create_with_review`。manifest 缺失时降级为 `degraded-consistency-check`，不输出 create。`sprint-status.yaml` 退出判定逻辑，仅作 `feishu_status` 附加信息。
+- **路径兼容**：阶段目录支持 glob 前缀（兼容 `[04] 04-需求分析/`），多目录命中返回 `ambiguous`。
+- **CLI 启动器 `delivery.py`**（插件根，12 行）：`python "${CLAUDE_PLUGIN_ROOT}/delivery.py" <cmd> --root . --json`，免安装、跨平台路径独立。Skill 内统一调用。
+- **3 个 launcher 合约测试**：验证从仓库外临时目录调用（`${CLAUDE_PLUGIN_ROOT}` 路径独立性）。
+- **子 agent 架构规范** (`docs/子agent架构规范.md` + `docs/adr/0009-上下文与子agent边界.md`)：明确「压缩输入才派子 agent」「校验一律走 CLI 退出码」「不派总 agent 复核」三条规则。
+- **ADR 0008** (`docs/adr/0008-desired-task-manifest.md`)：记录 desired-task manifest 决策、被否方案、风险。
+
+### Changed
+
+- **`resolve_artifact()` 阶段目录 glob 兼容**：从精确名改为 `root.glob(f"*{hint}")`，命中多个 → `ambiguous`。
+- **`delivery-onboarding` SKILL 目录示例**：机器文件（`SPEC.md` / `project-progress.yaml` / `sprint-status.yaml` / `_映射表.json` / `_商机映射表.json`）移到项目根固定位，人读产物才带 `[NN]` 前缀和 emoji。删除 `_meta/` 推荐。
+- **`delivery-client-gate` SKILL**：移除「进入 bmad-create-epics-and-stories 拆解，再走 delivery-feishu-sync」跳步文案，改为固定链路 `客户确认 → 四层架构 → readiness → Story 拆解 → 飞书同步`。
+- **`delivery-feishu-sync` SKILL** step 2：新增「生成 desired-tasks.json」；step 3：推送成功后回写 mapping 的 `synced`。
+- **`delivery-dry-run` SKILL**：重写，说明 `manifest-driven` / `degraded-consistency-check` 两种模式 + 退出码语义。
+- **`_映射表模板.json`**：新增 `_subtasks 格式` 说明 + 新格式示例。
+- **`docs/产物命名约定.md`**：增加 `desired-tasks.json` 行（项目根 + 兼容 `07-开发/` / `_meta/`）。
+- **`README.md` / `docs/runtime.md`**：CLI 命令统一改为 `python "${CLAUDE_PLUGIN_ROOT}/delivery.py" <cmd> --json`。
+- **`插件现状与待办.md`**：从 87 测试基线重写为 119 测试、20 Skill、9 CLI 子命令、8 Schema 的真实快照。
+
+### Removed
+
+- `dry-run` 旧判定逻辑（基于 sprint-status.yaml × mapping 的二元判定）——被 manifest-driven 取代。
+- `delivery-onboarding` SKILL 目录示例中 `[02] SPEC.md` 等机器文件带 `[NN]` 前缀的示例 ——违反机器文件固定名约定。
+
+---
+
 ## v0.1.0 (2026-07-24)
 
 ### Added
 
 - **插件从首个消费方项目剥离为独立可安装插件**：完成通用化剥离，所有项目特定内容移入消费方 `project-context.md`
-- **4 个差异化关卡 skill** 完整可用，并新增两项流程编排能力：
-  - `delivery-client-gate`：客户签字关卡（A 新确认 / B 存量登记 / C 变更确认三入口）
-  - `delivery-feishu-sync`：飞书任务 SSOT 同步（三层结构：清单→父任务→子任务）
-  - `delivery-sprint-sync`：飞书状态单向同步到本地 `sprint-status.yaml` 只读镜像
-  - `delivery-eval-loop`：AI 评测内循环（Tier1 引用覆盖/忠实/拒答 → 门禁放行；Tier2 答案正确/检索命中 → 待专家）
-  - `delivery-acceptance-gate`：客户验收关卡（验收依据 = client-gate 冻结快照）
-  - `delivery-prototype-html`：从 SPEC / PRD / UX 产出可离线运行的全页面交互原型
-- **入口编排** `delivery-onboarding`：角色识别 → 基座检测 → 路由到阶段
+- **15 个 Skill 完整可用**：
+  - 4 个差异化关卡 skill：`delivery-client-gate` / `delivery-feishu-sync` / `delivery-eval-loop` / `delivery-acceptance-gate`
+  - 2 个流程编排：`delivery-onboarding` / `delivery-prototype-html`
+  - 状态镜像：`delivery-sprint-sync`
+  - 从零安装：`delivery-bootstrap`
+  - 横切工具：`delivery-check` / `delivery-trace` / `delivery-status` / `delivery-dry-run` / `delivery-progress`
 - **4 份关卡模板**：客户确认记录、评测集、评测报告、验收报告（含 Tier1/Tier2 分层、自检清单）
 - **实例层占位模板**：`project-context模板.md`（AI Agent 注入）、`项目宪法模板.md`（人读治理）
-
-### Changed
-
-- 全插件统一 `"version": "0.1.0"`
-
----
-
-此版本是 delivery-flow 的初始发布版本，包含：
-- 7 个 Skill：4 个乙方交付关卡、HTML 原型、飞书状态镜像、入口编排
-- 关卡模板、实例层模板、上手文档、映射表、示范样例和 6 份 ADR
-- `.claude-plugin/plugin.json` 已声明 BMAD-METHOD、Superpowers 必需依赖和 lark 技能可选依赖
+- **6 份 ADR**：分层设计、飞书 SSOT、Tier1/Tier2 分层评测、阈值不预设、关卡流程约定、lark-cli 踩坑
 
 ### 能力边界
 
-- 本仓库提供 Markdown Skill、模板和示范文档，不包含运行时执行脚本、飞书 API 封装、评测 runner 或自动门禁。
+- 本仓库提供 Markdown Skill、模板、示范文档和本地只读 CLI，不包含真实飞书 API 写入、AI 评测 runner 或自动门禁执行器。
 - 飞书操作依赖外部 `lark-*` 技能；BMAD 安装命令仍需在真实消费方项目中验证。
-- 后续重点是自动化执行、测试和真实集成验证，不是继续重复 BMAD 或 Superpowers 已有能力。
+- v0.1.0 的 `dry-run` 基于 sprint-status.yaml × mapping 二元判定，已在 v0.2.0 被 manifest-driven 取代。

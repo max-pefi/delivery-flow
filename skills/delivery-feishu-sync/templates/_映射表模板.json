@@ -2,6 +2,7 @@
   "_说明": "本地任务ID ↔ 飞书ID 的三级映射（清单→父任务→子任务），是 upsert 防重复的地基。机器维护，勿手改。",
   "_结构说明": "三级嵌套：tasklists[name].guid → parent_tasks[name].guid → subtasks[id] = guid。每层都要回填飞书返回的 task_id。",
   "_同步规则": "推送前先查此表：本地ID已存在→update（更新阶段状态/描述）；不存在→create后立即回写 task_id 到此表。绝不盲目新建。",
+  "_subtasks 格式": "value 两种形态都支持：旧格式 = 裸 GUID 字符串（兼容存量）；新格式 = {task_id, synced?: {content_hash, synced_at, what, dod, deliverable, spec_ref}}（推荐，dry-run 据此判定 update/skip）。",
 
   "project": "<项目名>",
   "feishu_user_open_id": "<操作用户open_id>",
@@ -43,8 +44,20 @@
           "_说明": "父任务 = 一个功能/一个页面/一个story",
           "guid": "<父任务GUID>",
           "subtasks": {
-            "<本地子任务ID_A>": "<子任务GUID>",
-            "<本地子任务ID_B>": "<子任务GUID>"
+            "_说明_new_format": "新格式：{task_id, synced}，dry-run 据 synced.content_hash 判定 skip/update",
+            "<本地子任务ID_A>": {
+              "task_id": "<子任务GUID>",
+              "synced": {
+                "content_hash": "<64位hex，what/dod/deliverable/spec_ref 的 SHA-256>",
+                "synced_at": "2026-08-01",
+                "what": "做什么",
+                "dod": "DoD",
+                "deliverable": "交付物",
+                "spec_ref": "Capability 名"
+              }
+            },
+            "_说明_legacy_format": "旧格式（兼容）：裸 string，dry-run 标 create_with_review 建议升级",
+            "<本地子任务ID_B_legacy>": "<子任务GUID>"
           }
         },
         "<另一个父任务标题>": {

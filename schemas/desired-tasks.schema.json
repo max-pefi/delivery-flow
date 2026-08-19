@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "desired-tasks manifest",
+  "description": "本地写端 source of truth：PM 想要的飞书任务清单。join key = local_id，与 _映射表.json 的 subtasks 对齐。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "generated_at", "tasks"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "项目名，与 project-context.md 一致"
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "manifest 生成日期（YYYY-MM-DD）"
+    },
+    "source_story": {
+      "type": "string",
+      "description": "可选：来源 story 文件相对路径，便于追溯"
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["local_id", "tasklist", "parent_task", "what", "dod", "deliverable", "content_hash"],
+        "properties": {
+          "local_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "本地子任务 ID（如 A-1），与映射表 subtasks 的 key 对齐"
+          },
+          "tasklist": {
+            "type": "string",
+            "minLength": 1,
+            "description": "所属清单名"
+          },
+          "parent_task": {
+            "type": "string",
+            "minLength": 1,
+            "description": "所属父任务名"
+          },
+          "what": {
+            "type": "string",
+            "minLength": 1,
+            "description": "做什么（任务标题/简述）"
+          },
+          "dod": {
+            "type": "string",
+            "minLength": 1,
+            "description": "DoD（验收标准），引用对应 AC 编号"
+          },
+          "deliverable": {
+            "type": "string",
+            "minLength": 1,
+            "description": "交付物（产出文件/PR/链接）"
+          },
+          "spec_ref": {
+            "type": "string",
+            "description": "可选：SPEC.md 引用（Capability 或 Success signal 字段名）"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "what/dod/deliverable/spec_ref 四字段的 SHA-256，用于 update 检测"
+          }
+        }
+      }
+    }
+  }
+}

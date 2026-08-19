@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project-governance.schema.json",
+  "title": "delivery-flow project governance",
+  "description": "风险、问题、变更和决策登记。负责人和日期均可选。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "risks", "issues", "changes", "decisions"],
+  "properties": {
+    "version": {"type": "string", "minLength": 1},
+    "risks": {"type": "array", "items": {"$ref": "#/$defs/risk"}},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "changes": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+    "decisions": {"type": "array", "items": {"$ref": "#/$defs/decision"}}
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "status", "impact", "evidence"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "priority": {"enum": ["P0", "P1", "P2"]},
+        "status": {"type": "string", "minLength": 1},
+        "impact": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "owner": {"type": ["string", "null"]},
+        "phase": {"type": ["string", "null"]},
+        "task_refs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "risk": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["probability", "severity", "mitigation"], "properties": {
+          "probability": {"enum": ["low", "medium", "high"]},
+          "severity": {"enum": ["low", "medium", "high", "critical"]},
+          "mitigation": {"type": "string", "minLength": 1}
+        }}
+      ]
+    },
+    "issue": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["resolution_condition"], "properties": {
+          "resolution_condition": {"type": "string", "minLength": 1}
+        }}
+      ]
+    },
+    "change": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["approval", "affected_artifacts"], "properties": {
+          "approval": {"enum": ["pending", "approved", "rejected"]},
+          "affected_artifacts": {"type": "array", "items": {"type": "string"}}
+        }}
+      ]
+    },
+    "decision": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["context", "outcome"], "properties": {
+          "context": {"type": "string", "minLength": 1},
+          "outcome": {"type": "string", "minLength": 1}
+        }}
+      ]
+    }
+  }
+}

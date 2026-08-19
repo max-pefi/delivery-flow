@@ -3,51 +3,45 @@
 # 不是 Story 粒度的执行状态（那是 sprint-status.yaml + 飞书的事）。
 # 不与 sprint-status.yaml 重叠——本文件追踪"PM 到流水线哪一步了"。
 
-project: "示例项目"
+# 项目名称（与 project-context.md 一致；首次 bootstrap 时由用户填入）
+project: "{{项目名}}"
 
-# 商机编号（Trace 根）：由 delivery-presales 在商机确认时生成，deal-gate 放行时写入这里；
-# 贯穿商机→SPEC→Story→飞书→评测→验收全链路。无售前阶段的存量项目可留空。
-trace_id: "OPP-2026-001"
+# 商机编号（Trace 根）：由 delivery-presales 在商机确认时生成，deal-gate 放行时写入；
+# 贯穿商机→SPEC→Story→飞书→评测→验收全链路。无售前阶段的存量项目可留空字符串。
+trace_id: ""
 
-# 当前所处阶段（最新 in_progress 的阶段）
+# 当前所处阶段。
+# 全新项目固定为 requirements。
+# 流程完成（acceptance_gate 通过）后置为 null（验收完成态），与 schema 中允许 null 一致。
 current_stage: "requirements"
 
 # 各阶段状态：pending → in_progress → done
+# 全新项目：所有阶段 pending；具体阶段开始时由对应 skill 标记 in_progress；
+# 关卡通过后由对应 skill 标记 done + completed_at。
 stages:
   # 售前上游三阶段（delivery-presales / delivery-deal-gate）
   opportunity:
-    status: done
-    completed_at: "2026-07-15"
+    status: pending
   proposal:
-    status: done
-    completed_at: "2026-07-17"
+    status: pending
   deal_gate:
-    status: done
-    completed_at: "2026-07-18"
-    gate_evidence: "合同签约确认记录-2026-07-18.md"
+    status: pending
   # 交付主流水线
   requirements:
-    status: done
-    completed_at: "2026-07-20"
-  analysis:
-    status: done
-    completed_at: "2026-07-22"
-  prd:
-    status: done
-    completed_at: "2026-07-25"
-  ux:
-    status: done
-    completed_at: "2026-07-27"
-  prototype:
-    status: done
-    completed_at: "2026-07-28"
-  client_gate:
-    status: done
-    completed_at: "2026-07-30"
-    gate_evidence: "客户确认记录-2026-07-30.md"
-  architecture:
     status: in_progress
-    started_at: "2026-07-31"
+  analysis:
+    status: pending
+  prd:
+    status: pending
+  ux:
+    status: pending
+  prototype:
+    status: pending
+  client_gate:
+    status: pending
+  architecture:
+    status: pending
+    # 四层架构：业务架构 → 产品架构 → 技术架构 → 数据架构
   tech_readiness:
     status: pending
   story_breakdown:
