@@ -144,6 +144,39 @@ npx bmad-method install
 
 完整规则与示例见 [delivery-onboarding/SKILL.md](skills/delivery-onboarding/SKILL.md)。
 
+### 3 层封顶（模块内不分子模块）
+
+超过 3 层就要警惕——很可能分错了，应把「子模块」升级为顶层模块：
+
+```
+阶段 → 模块 → Story 文件（顶）
+ 1 层    2 层     3 层
+```
+
+**Story 层用编号 + 文件名前缀区分子功能**，不分子目录：
+
+```
+07-开发/stories/订单模块/
+├── STORY-001-创建订单.md    ← 子功能：下单
+├── STORY-002-支付订单.md
+└── STORY-004-查询订单.md    ← 子功能：查询
+```
+
+**升级条件**：客户明确点名 / 独立签字 / 跨多团队，才升级为顶层模块。
+
+### 混乱项目接入（已有项目）
+
+**不重命名、不迁移、轻量补建。** 项目级文件都是可选层：
+
+1. 创建 `project-progress.yaml`：`current_stage` + `meta.mode: quick` + `meta.modules`
+2. `delivery check --root . --json` 看哪些缺失
+3. `delivery progress --root . --json` 拿下一步建议
+4. 选关键产物补建——缺失 SPEC 跑 `bmad-spec` 重生成、缺失客户确认走 `delivery-client-gate` B 入口
+
+AI 协助整理脚本入口：说「整理混乱项目」触发扫描 + 产出「现状快照.md」。
+
+完整规则见 [delivery-onboarding/SKILL.md](skills/delivery-onboarding/SKILL.md)。
+
 ## 本地 CLI 与 dry-run
 
 CLI 只读、不调用网络、不写项目文件。两种调用方式二选一：

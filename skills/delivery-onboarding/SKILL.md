@@ -71,6 +71,32 @@ BMAD 在此当方法论脚手架 + 文档工具箱——前端探索、研究、
 
 ## 项目目录结构规范
 
+### 混乱项目接入（已有项目）
+
+**核心原则：不重命名、不迁移、轻量补建。** 历史项目的「乱」是**现实成本**，重命名带来的回归风险远大于收益。插件架构已为此设计：所有项目级文件（`project-progress.yaml` / `_映射表.json` / `SPEC.md`）都是**可选层**，缺失时 CLI 返回 `status: missing` 而不报错。
+
+**4 步接入**（半小时内可完成）：
+
+1. **创建 `project-progress.yaml`**（参考 `templates/project-progress模板.yaml`）：
+   - `current_stage: <推断的当前阶段>`（AI 扫描产物推断）
+   - `meta.mode: quick` ← 关键：用快速模式，不要求补全历史
+   - `meta.modules: [<实际模块>]` ← 如果是多模块项目
+
+2. **跑 `delivery check --root . --json`**——告诉你哪些产物已存在 / 哪些缺失 / 下一步补什么
+
+3. **跑 `delivery progress --root . --json`**——拿到 `next_action_suggestion`，AI 按此引导
+
+4. **选关键产物补建**（不动人读产物）：
+   - 缺失 SPEC.md / PRD.md → 跑 `bmad-spec` 重新生成（不算补历史，是补契约）
+   - 缺失客户确认记录 → 走 `delivery-client-gate` 的 B 入口（登记既有确认，不重签）
+   - 缺失架构 → 走 `bmad-check-implementation-readiness` 重检
+
+**AI 协助整理脚本**（用户说"整理混乱项目"时触发）：
+
+<action>扫描项目根 + 阶段目录所有文件，按文件名前缀 / 内容关键词推断属于哪个阶段 / 模块</action>
+<action>产出「现状快照.md」：**推断的阶段 + 模块归属 + 缺失清单 + 建议补建顺序**</action>
+<action>用户确认快照后，**只补建缺失的机器文件**（不动人读产物），写入 `meta.snapshot_at` 标记此次整理时间</action>
+
 每个项目启动时，按以下结构组织文件。**按阶段分文件夹**，文件带顺序编号，文件夹用 emoji 标记当前状态。
 
 ### 目录结构示例
@@ -250,6 +276,44 @@ BMAD 在此当方法论脚手架 + 文档工具箱——前端探索、研究、
 <action>用户回答后写到 `project-progress.yaml` 的 `meta.modules`（数组），作为后续所有 step 的子目录依据。</action>
 
 <action>写入后所有相关 skill（delivery-prototype-html / delivery-feishu-sync / delivery-plan）按 `meta.modules` 生成对应的子目录结构。</action>
+
+### 3 层封顶原则（模块内子模块/子阶段）
+
+**默认不分子模块。** 超过 3 层就要警惕——很可能分错了，应把「子模块」升级为顶层模块。
+
+```
+阶段（项目根） →  模块（阶段内）  →  Story 文件（模块内）
+   1 层              2 层              3 层 ← 顶
+```
+
+**各阶段产物的分层建议**：
+
+| 阶段产物 | 建议 |
+|---|---|
+| PRD / UX / 架构 | 按**模块**共享，不分子模块 |
+| SPEC | 项目根单一文件，跨模块功能写 Capabilities 数组 |
+| Story | 按**子功能**分（一个 Story 一个文件），文件名前缀区分 |
+| HTML 原型 | 按模块一个子目录（已支持） |
+
+**Story 层分子目录示例**（不分子模块，用文件名前缀区分）：
+
+```
+07-开发/stories/订单模块/
+├── STORY-001-创建订单.md       ← 子功能：下单
+├── STORY-002-支付订单.md
+├── STORY-003-取消订单.md
+├── STORY-004-查询订单.md       ← 子功能：查询
+├── STORY-005-订单详情.md
+└── STORY-006-订单退款.md       ← 子功能：售后
+```
+
+**什么时候才升级为独立模块**（满足任一）：
+
+- 客户/PM 明确点了子模块名（如「订单管理」+「售后管理」是两个模块）
+- 子模块独立交付、独立签字（罕见）
+- 子模块跨多团队
+
+否则保持「模块 + Story 层文件命名区分」即可。
 
 <workflow>
 
