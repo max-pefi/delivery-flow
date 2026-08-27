@@ -373,7 +373,7 @@ BMAD 在此当方法论脚手架 + 文档工具箱——前端探索、研究、
 <step n="1" goal="确保基座就位">
   <action>检查 BMAD 是否装（项目根有 `_bmad/`）——当方法论脚手架 + 文档工具箱。缺则提示 `npx bmad-method install`。</action>
   <action>检查 Superpowers 是否装（研发角色必需，保证 TDD/调试/验证一致性）。缺则提示装 obra/superpowers。</action>
-  <action>检查 `project-context.md`（实例层：红线/阈值/验收线）是否存在。缺则提示跑 `bmad-generate-project-context` 或用本模块 `templates/project-context模板.md` 填。</action>
+  <action>检查 `project-context.md`（实例层：红线/阈值/验收线）是否存在。缺则**优先**跑 `bmad-generate-project-context`（BMAD 已装时）；**否则**用本模块 `templates/project-context模板.md` 填。</action>
   <action if="涉及飞书">确认 lark-* skill 可用且已授权（领活/推任务需要）。</action>
 </step>
 

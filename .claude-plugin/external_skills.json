@@ -1,0 +1,37 @@
+{
+  "$schema": "delivery-flow 外部 skill 登记表",
+  "purpose": "scripts/check_capability_overlap.py 解析此文件，列出 delivery-flow 实际引用的外部 skill（含 bmad-* / superpowers / lark-*）。新增外部引用前请同步更新。",
+  "generated": "2026-08-26",
+  "bmad": [
+    {"name": "bmad-brainstorming", "purpose": "需求发散（引导式发现）"},
+    {"name": "bmad-market-research", "purpose": "市场研究（联网调研）"},
+    {"name": "bmad-domain-research", "purpose": "领域研究（联网调研）"},
+    {"name": "bmad-technical-research", "purpose": "技术调研（联网调研）"},
+    {"name": "bmad-product-brief", "purpose": "概念锁定（文档生成）"},
+    {"name": "bmad-prfaq", "purpose": "PR/FAQ 文档生成"},
+    {"name": "bmad-spec", "purpose": "SPEC.md 机读契约（5 字段：Why/Capabilities/Constraints/Non-goals/Success signal）"},
+    {"name": "bmad-prd", "purpose": "引导式 PRD"},
+    {"name": "bmad-ux", "purpose": "DESIGN/EXPERIENCE 视觉规范 + 2-4 屏静态 mock"},
+    {"name": "bmad-architecture", "purpose": "四层架构文档（业务/产品/技术/数据）"},
+    {"name": "bmad-check-implementation-readiness", "purpose": "技术就绪检查"},
+    {"name": "bmad-create-epics-and-stories", "purpose": "Story 拆解"},
+    {"name": "bmad-qa-generate-e2e-tests", "purpose": "E2E 测试骨架生成"},
+    {"name": "bmad-generate-project-context", "purpose": "project-context 模板（delivery-flow 软引用，BMAD 未装时降级到本地模板）"},
+    {"name": "bmad-eval-runner", "purpose": "skill 本身评测（**显式不重叠** delivery-eval-loop，本模块评业务侧忠实度）"},
+    {"name": "bmad-retrospective", "purpose": "复盘（隐含在 acceptance-gate 之后）"}
+  ],
+  "superpowers": [
+    {"name": "obra/superpowers", "tier": "plugin", "purpose": "研发内功插件集合（TDD/调试/验证/writing-plans），仅研发角色必需"}
+  ],
+  "lark": [
+    {"name": "lark-shared", "purpose": "飞书认证/身份"},
+    {"name": "lark-task", "purpose": "飞书任务操作"},
+    {"name": "lark-base", "purpose": "飞书多维表格（Bitable）"}
+  ],
+  "counts": {
+    "bmad": 16,
+    "superpowers": 1,
+    "lark": 3,
+    "total_external_referenced_skills": 20
+  }
+}

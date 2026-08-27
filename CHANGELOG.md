@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **「不重复造轮子」可机读规则（L1/L2/L3 三层结构）**：
+  - **L1 元数据**：`plugin.json` 的 `dependencies` 由空数组 `[]` 改为 4 项数组（bmad-method required / superpowers recommended / lark-skills + project-management optional）。
+  - **L2 边界登记**：新建 `.claude-plugin/CAPABILITY_BOUNDARIES.md`，21 个 skill 全部登记三行固定格式（边界/标签/别名），三分类 `UNIQUE` / `BOUNDARY_DECLARED` / `OVERLAP_REMOVED`。
+  - **L3 校验脚本**：`scripts/check_capability_overlap.py`（stdlib only），用 Overlap 系数 `|A∩B|/min(|A|,|B|)` + 中文字 bigram + 触发句剥离，阈值 0.8 FAIL / 0.6 WARN / <0.6 PASS；CLI 三种：`--new-skill` / `--all --include-untracked` / `--diff <ref>`。
+  - **L3 外部清单**：`.claude-plugin/external_skills.json` 登记 16 个 bmad-* + 1 个 superpowers 插件 + 3 个 lark-*。
+  - **L3 CI**：`.github/workflows/skill-overlap-check.yml`，PR 修改 `skills/**` 等 6 类路径时触发，全量回归 + 单测 + diff 校验。
+  - **单测**：16 个 unittest 覆盖 PASS/FAIL/触发句剥离/bigram/Overlap 系数等关键路径。
+  - **ADR 0011**：记录 L1/L2/L3 三层结构 + 与 ADR 0004「不预设数字」的边界（校验阈值非业务阈值）。
+  - **ADR 0001 观测指标**：新增「观测指标」章节，量化自建 skill 三分类占比（14 UNIQUE / 5 BOUNDARY_DECLARED / 2 OVERLAP_REMOVED）。
+
+### Changed
+
+- **`delivery-onboarding` SKILL.md:376**：「缺则提示跑 `bmad-generate-project-context` 或用本模块 `templates/project-context模板.md` 填」改为「缺则**优先**跑 `bmad-generate-project-context`（BMAD 已装时）；**否则**用本模块 `templates/project-context模板.md` 填」——保持「BMAD 装了更好，不装也能跑」的 ADR 0001 定位，软改不删。
+
+## v0.2.1 (2026-08-21)
+
+### Added
+
+- **`project-progress.yaml` 支持 `meta` 顶层段**：`mode / modules / complexity / snapshot_at` 等透传字段可写入 `meta:` 段，简化解析器接受但不展开解析子字段；`validate_progress()` 不要求 `meta` 段存在，向后兼容无 `meta` 的项目。3 个新单测覆盖：带 meta 解析、无 meta 回退、未知顶层 key 拒绝。
+- **`delivery layout` CLI**（只读扫描）：扫描项目根 + 阶段目录，输出「机器文件清单 / 散落文件（按主题分类）/ 建议创建的阶段目录 / 警告」。**不动任何文件**——AI 拿到结果后向人念方案，人点头才决定。配套 skill `delivery-project-layout`。
+- **`delivery stage-next` CLI**（阶段推进草稿助手）：根据 `project-progress.yaml` 的 `current_stage` 输出「该阶段建议创建的草稿文件路径清单」+ 用途 + 是否已存在。**不创建任何文件**——草稿创建权归各阶段 skill 自己。配套 5 个新单测。
+- **`delivery-project-layout` skill**：用户说"项目文件乱了 / 整理项目 / 按主题分类"时 AI 入口。强制遵守 `<execution_contract>` 5 条：不替人拍板、不动文件、不建产物、关卡产物不动、建议必有理由。
+- **7+5 个新单测**：layout_scan 7 个（_classify_filename 2 + layout_scan 5），stage_next_drafts 5 个。**总测试数 119 → 134**。
+
+### Changed
+
+- **`delivery-onboarding` SKILL.md**：Step 0 / 0.5 加「问模式 + 问复杂度」流程，AI 不替用户拍板；`meta.mode / meta.modules` 写入 `project-progress.yaml` 的 `meta` 顶层段。
+
 ## v0.2.0 (2026-08-07)
 
 ### Added

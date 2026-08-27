@@ -1,0 +1,42 @@
+name: skill-overlap-check
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'skills/**'
+      - '.claude-plugin/CAPABILITY_BOUNDARIES.md'
+      - '.claude-plugin/plugin.json'
+      - '.claude-plugin/external_skills.json'
+      - 'scripts/check_capability_overlap.py'
+      - '.github/workflows/skill-overlap-check.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need full history for git diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install package (editable)
+        run: pip install -e .
+
+      - name: Run capability overlap check
+        run: |
+          python scripts/check_capability_overlap.py \
+            --diff origin/master \
+            --include-untracked
+
+      - name: Full regression (sanity)
+        run: |
+          python scripts/check_capability_overlap.py --all --include-untracked
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/test_check_capability_overlap.py -v

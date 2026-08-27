@@ -1,6 +1,6 @@
 {
   "name": "delivery-flow",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "交付型敏捷 AI 研发工作流（标准模式）：把 BMAD-METHOD v6 当方法论脚手架 + 文档工具箱（前端探索 / SPEC 机读契约 / 引导式 PRD / 架构脊柱 / 拆故事全开，执行状态机让位给飞书），Superpowers 当研发内功，补齐乙方交付的四个差异化关卡——客户签字(入口)、飞书任务 SSOT 同步(飞书=执行真源)、AI 应用评测内循环、客户验收(出口)，并提供角色路由入口，让团队脱离个人也能按同一流水线运转。",
   "author": {
     "name": "Fred Simas"
@@ -13,5 +13,30 @@
     "feishu",
     "rag-eval"
   ],
-  "dependencies": []
+  "dependencies": [
+    {
+      "name": "bmad-method",
+      "tier": "required",
+      "install": "npx bmad-method install",
+      "purpose": "产品规划/SPEC/PRD/UX/架构/story 拆解（方法论脚手架 + 文档工具箱）"
+    },
+    {
+      "name": "superpowers",
+      "tier": "recommended",
+      "install": "obra/superpowers 插件市场",
+      "purpose": "研发内功（TDD/调试/验证/writing-plans），仅研发角色必需"
+    },
+    {
+      "name": "lark-skills",
+      "tier": "optional",
+      "install": "lark-skills 插件市场",
+      "purpose": "飞书任务/多维表格/认证，仅飞书环节（feishu-sync / crm-sync / sprint-sync）需要"
+    },
+    {
+      "name": "project-management",
+      "tier": "optional",
+      "install": "用户自挂",
+      "purpose": "通用 PM 轻量入口（个人外挂，delivery-flow 不在 SKILL.md 内引用）"
+    }
+  ]
 }
