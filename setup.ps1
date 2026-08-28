@@ -143,6 +143,15 @@ $PluginPathEscaped
 脚本：\`powershell -ExecutionPolicy Bypass -File "$PluginPath\setup-verify.ps1" -Json\`
 
 AI 触发词："verify 一下" / "setup 出问题了" / "AI 找不到插件" → 跑上面脚本，按 \`has_error\` 决定修复策略。
+
+## 7. 模型分层（让大模型思考，小模型执行）
+
+读 \`project-context.md\` 的「模型分层策略」节（如有），按用户填的阶段-模型组合路由：
+
+- "出方案" / "想一下" / "列计划" → 当前阶段的**思考模型**（Opus / GPT-5 / SOL 等）
+- "按方案执行" / "写代码" / "改这个" → 当前阶段的**执行模型**（Sonnet / Haiku / Codex-mini 等）
+- 思考模型产出 → 先写 \`.draft.\` → 人 review → 切执行模型
+- 触发词未命中 → 默认按 \`project-context.md\` 当前阶段模型组合执行；未填模型分层策略就一路默认模型走
 "@
         Set-Content -Path "AGENTS.md" -Value $AgentsContent -Encoding UTF8
         Write-Host "✅ 已生成 AGENTS.md" -ForegroundColor Green
