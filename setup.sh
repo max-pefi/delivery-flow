@@ -124,55 +124,64 @@ if [[ "$DO_CODEX" == "1" ]]; then
   elif [[ -f "AGENTS.md" ]]; then
     echo "⏭️  AGENTS.md 已存在，跳过生成（如需重新生成请手动删除）"
   else
-    cat > AGENTS.md <<EOF
+    cat > AGENTS.md <<'EOF'
 # AGENTS.md — 项目 AI 工作指令
 
 > delivery-flow 入口。新对话开始自动读取。
 
 ## 1. 插件路径
 
-\\`\\`\\`
+```
 ${PLUGIN_PATH_ESCAPED}
-\\`\\`\\`
+```
 
 ## 2. 启动动作（每个新对话必做）
 
 按顺序：
-1. 调 \\`python "${PLUGIN_PATH//\\/\\\\}delivery.py" progress --root . --json\\` 读当前阶段
-2. 读 \\`project-context.md\\`（项目宪法，不存在则提示生成）
+1. 调 `python "${PLUGIN_PATH//\\/\\\\}delivery.py" progress --root . --json` 读当前阶段
+2. 读 `project-context.md`（项目宪法，不存在则提示生成）
 3. 扫项目根所有文档（不要求用户整理）
 
 ## 3. 阶段路由（不要靠记忆判断）
 
-- "现在到哪了" → 调 \\`progress\\`，复述 \\`next_action_suggestion.suggested_question\\`
-- "下一步" → 调 \\`dry-run\\`，列出操作清单等我确认
-- "撤回" → 调 \\`delivery revert --step <stage_id>\\`
+- "现在到哪了" → 调 `progress`，复述 `next_action_suggestion.suggested_question`
+- "下一步" → 调 `dry-run`，列出操作清单等我确认
+- "撤回" → 调 `delivery revert --step <stage_id>`
 - "我是 XX 角色，做 XX" → 读 progress + 角色路由表决定 skill
 
 **角色 → skill 路由**：
-- 商务/售前 → \\`delivery-presales\\` / \\`delivery-deal-gate\\`
-- PM → BMAD \\`brainstorm\\` / \\`write-prd\\` / \\`delivery-client-gate\\`
-- 项目经理 → \\`delivery-plan\\` / \\`delivery-feishu-sync\\` / \\`delivery-acceptance-gate\\`
-- 研发 → Superpowers \\`tdd\\` / \\`writing-plans\\`
-- AI 工程师 → \\`delivery-eval-loop\\` / \\`pm-ai-shipping:ship-check\\`
+- 商务/售前 → `delivery-presales` / `delivery-deal-gate`
+- PM → BMAD `brainstorm` / `write-prd` / `delivery-client-gate`
+- 项目经理 → `delivery-plan` / `delivery-feishu-sync` / `delivery-acceptance-gate`
+- 研发 → Superpowers `tdd` / `writing-plans`
+- AI 工程师 → `delivery-eval-loop` / `pm-ai-shipping:ship-check`
 
 ## 4. 三个纪律（违反即报错）
 
 1. **逐步确认**：每 step 前告诉我"要做 X、产出 Y"，等我说"继续"再执行
 2. **不确定就问**：不替我拍板
-3. **草稿态**：先写 \\`.draft.\\`，确认后才 mv
+3. **草稿态**：先写 `.draft.`，确认后才 mv
 
 ## 5. 详细规则查这里
 
-- 21 个 skill 清单：\\`${PLUGIN_PATH_ESCAPED}\\README.md\\` 第 40-48 行
+- 21 个 skill 清单：`${PLUGIN_PATH_ESCAPED}\README.md` 第 40-48 行
 - 三步循环：README 第 458-465 行
-- 状态机：\\`project-progress.yaml\\`
+- 状态机：`project-progress.yaml`
 
 ## 6. 自检（出问题先跑这个）
 
-脚本：\\`bash ${PLUGIN_PATH_BASH}/setup-verify.sh --json\\`
+脚本：`bash ${PLUGIN_PATH_BASH}/setup-verify.sh --json`
 
-AI 触发词："verify 一下" / "setup 出问题了" / "AI 找不到插件" → 跑上面脚本，按 \\`has_error\\` 决定修复策略。
+AI 触发词："verify 一下" / "setup 出问题了" / "AI 找不到插件" → 跑上面脚本，按 `has_error` 决定修复策略。
+
+## 7. 模型分层（让大模型思考，小模型执行）
+
+读 `project-context.md` 的「模型分层策略」节（如有），按用户填的阶段-模型组合路由：
+
+- "出方案" / "想一下" / "列计划" → 当前阶段的**思考模型**（Opus / GPT-5 / SOL 等）
+- "按方案执行" / "写代码" / "改这个" → 当前阶段的**执行模型**（Sonnet / Haiku / Codex-mini 等）
+- 思考模型产出 → 先写 `.draft.` → 人 review → 切执行模型
+- 触发词未命中 → 默认按 `project-context.md` 当前阶段模型组合执行；未填模型分层策略就一路默认模型走
 EOF
     echo "✅ 已生成 AGENTS.md（Codex / 其他工具）"
   fi
