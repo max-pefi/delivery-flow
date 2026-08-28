@@ -594,7 +594,12 @@ AI：[调用 Superpowers TDD 流程]
 3. 完成后说"下一步"       → AI 自动推进到下一阶段
 ```
 
-**模型分层策略**（可选）：在 `project-context.md` 的「模型分层策略」节里填"哪个阶段用哪个级别的模型（Opus/SOL 思考 vs Sonnet/Haiku/Codex-mini 执行）"和触发词（"出方案"/"按方案执行"）。填好后 AI 收到指令会按策略路由到对应模型；不填则按当前模型一路走完。
+**模型分层策略**（可选）：在 `project-context.md` 的「模型分层策略」节里填"哪个阶段用哪个级别的模型（Opus/SOL 思考 vs Sonnet/Haiku/Codex-mini 执行）"和触发词（"出方案"/"按方案执行"）。**双路径**：
+
+- **同工具内分层**（都在 Claude Code / 都在 Codex CLI）：直接说"切到执行"/"切到思考"，AI 在当前工具内切换档位（Claude 用 `/think hard` 或 Task tool，Codex 用 `/plan` 或 `/code`）
+- **跨工具交接**（⭐常见）：思考模型在工具 A 把方案写到 `.draft.md` → 关 A → 工具 B 第一句"读 `<交接文件>`，按方案执行"。「交接文件」列在 `project-context.md` 的 5 列表格里指定
+
+填好后 AI 收到指令会按策略路由到对应模型；不填则按当前模型一路走完。Codex 用户额外看 `.codex-plugin/plugin.json` 的 `model_strategy` 字段。
 
 **关键节点（硬门禁，不可跳过）**：
 

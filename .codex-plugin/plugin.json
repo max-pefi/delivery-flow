@@ -14,7 +14,31 @@
     "delivery",
     "bmad",
     "feishu",
-    "rag-eval"
+    "rag-eval",
+    "model-strategy",
+    "thinking-model",
+    "execution-model"
   ],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "model_strategy": {
+    "thinking_mode": "Codex CLI /plan 模式触发 SOL（high reasoning effort）；也支持 'think deep' 自然语言触发",
+    "execution_mode": "Codex CLI /code 模式触发 mini（low reasoning effort）；按方案逐行执行",
+    "handoff_protocol": "思考工具出方案 → 写到 <交接文件>（默认 .draft.md） → 关闭当前工具 → 执行工具所在工具读 .draft.md 第一句话: '读 <交接文件>,按方案执行'。交接文件由 project-context.md 的「模型分层策略」节指定",
+    "triggers": [
+      "出方案",
+      "想一下",
+      "列计划",
+      "按方案执行",
+      "写代码",
+      "改这个",
+      "切到执行",
+      "切到思考",
+      "读 draft 文件"
+    ],
+    "antipatterns": [
+      "跨工具交接时思考模型没落文件（执行工具找不到依据）",
+      "执行工具读了未 .draft. 的方案（违反 SSOT 纪律）",
+      "思考 / 执行工具在不同项目目录（上下文丢失）"
+    ]
+  }
 }
