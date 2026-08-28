@@ -1,0 +1,217 @@
+name: Test setup scripts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'setup.sh'
+      - 'setup.ps1'
+      - 'setup-verify.sh'
+      - 'setup-verify.ps1'
+      - '.github/workflows/test-setup.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'setup.sh'
+      - 'setup.ps1'
+      - 'setup-verify.sh'
+      - 'setup-verify.ps1'
+      - '.github/workflows/test-setup.yml'
+
+jobs:
+  bash:
+    name: Bash (Linux/macOS)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 语法检查 setup.sh
+        run: bash -n setup.sh && echo "✅ setup.sh 语法正确"
+
+      - name: 语法检查 setup-verify.sh
+        run: bash -n setup-verify.sh && echo "✅ setup-verify.sh 语法正确"
+
+      - name: --help 输出验证
+        run: |
+          bash setup.sh --help | head -3
+          bash setup-verify.sh --help | head -3
+
+      - name: 端到端 dry-run（不创建任何文件）
+        run: |
+          set -e
+          TMPDIR=$(mktemp -d)
+          cd "$TMPDIR"
+          bash "$GITHUB_WORKSPACE/setup.sh" \
+            --plugin-path "$GITHUB_WORKSPACE" \
+            --bmad --init \
+            --init-name 测试项目 \
+            --init-user CI \
+            --dry-run
+          echo "✅ dry-run 完成，无错误"
+          # 验证关键文件没被创建
+          ! test -f AGENTS.md
+          ! test -f project-context.md
+          ! test -f project-progress.yaml
+          ! test -d _bmad
+          echo "✅ 验证：dry-run 模式未创建任何文件"
+
+      - name: 端到端实跑 init（无 BMAD/软链接）
+        run: |
+          set -e
+          TMPDIR=$(mktemp -d)
+          cd "$TMPDIR"
+          bash "$GITHUB_WORKSPACE/setup.sh" \
+            --plugin-path "$GITHUB_WORKSPACE" \
+            --no-claude --no-codex --no-cursor --no-windsurf \
+            --init \
+            --init-name 测试项目 \
+            --init-user CI
+          test -f project-context.md
+          test -f project-progress.yaml
+          grep -q "project: \"测试项目\"" project-progress.yaml
+          grep -q "project_name: '测试项目'" project-context.md
+          echo "✅ init 端到端通过"
+
+      - name: 端到端实跑 verify（空目录）
+        run: |
+          set -e
+          TMPDIR=$(mktemp -d)
+          cd "$TMPDIR"
+          set +e
+          bash "$GITHUB_WORKSPACE/setup-verify.sh"
+          RC=$?
+          set -e
+          if [[ "$RC" -ne 2 ]]; then
+            echo "❌ 期望退出码 2（ERROR），实际 $RC"
+            exit 1
+          fi
+          echo "✅ verify 空目录场景退出码正确（=2）"
+
+      - name: 端到端 verify JSON 输出
+        run: |
+          set -e
+          TMPDIR=$(mktemp -d)
+          cd "$TMPDIR"
+          bash "$GITHUB_WORKSPACE/setup-verify.sh" --json > verify.json
+          python3 -c "import json; d=json.load(open('verify.json')); n=len(d['results']); assert d['has_error']==1 and d['has_warn']==1 and n>=5; print('✅ JSON 输出合法：' + str(n) + ' 项结果')"
+
+  powershell:
+    name: PowerShell (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 PowerShell 7
+        shell: pwsh
+        run: |
+          $PSVersionTable.PSVersion | Format-Table
+          Write-Host "✅ PowerShell 版本: $($PSVersionTable.PSVersion)"
+
+      - name: 语法检查 setup.ps1
+        shell: pwsh
+        run: |
+          $tokens = $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$env:GITHUB_WORKSPACE/setup.ps1",
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            Write-Host "❌ 语法错误："
+            $errors | ForEach-Object { Write-Host "  $($_.Message) at line $($_.Extent.StartLineNumber)" }
+            exit 1
+          }
+          Write-Host "✅ setup.ps1 语法正确"
+
+      - name: 语法检查 setup-verify.ps1
+        shell: pwsh
+        run: |
+          $tokens = $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$env:GITHUB_WORKSPACE/setup-verify.ps1",
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            Write-Host "❌ 语法错误："
+            $errors | ForEach-Object { Write-Host "  $($_.Message) at line $($_.Extent.StartLineNumber)" }
+            exit 1
+          }
+          Write-Host "✅ setup-verify.ps1 语法正确"
+
+      - name: 端到端 dry-run
+        shell: pwsh
+        run: |
+          $Tmp = Join-Path $env:TEMP "delivery-flow-test-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $Tmp | Out-Null
+          Push-Location $Tmp
+          try {
+            & "$env:GITHUB_WORKSPACE\setup.ps1" `
+              -PluginPath $env:GITHUB_WORKSPACE `
+              -Bmad -Init `
+              -InitName "测试项目" `
+              -InitUser "CI" `
+              -DryRun
+            # 验证 dry-run 没创建任何文件
+            $files = @("AGENTS.md", "project-context.md", "project-progress.yaml")
+            foreach ($f in $files) {
+              if (Test-Path $f) {
+                Write-Host "❌ dry-run 不应创建 $f"
+                exit 1
+              }
+            }
+            if (Test-Path "_bmad") {
+              Write-Host "❌ dry-run 不应创建 _bmad/"
+              exit 1
+            }
+            Write-Host "✅ dry-run 完成，未创建任何文件"
+          } finally {
+            Pop-Location
+            Remove-Item -Path $Tmp -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: 端到端实跑 init
+        shell: pwsh
+        run: |
+          $Tmp = Join-Path $env:TEMP "delivery-flow-test-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $Tmp | Out-Null
+          Push-Location $Tmp
+          try {
+            & "$env:GITHUB_WORKSPACE\setup.ps1" `
+              -PluginPath $env:GITHUB_WORKSPACE `
+              -NoClaude -NoCodex -NoCursor -NoWindsurf `
+              -Init `
+              -InitName "测试项目" `
+              -InitUser "CI"
+            if (-not (Test-Path "project-context.md")) { throw "缺 project-context.md" }
+            if (-not (Test-Path "project-progress.yaml")) { throw "缺 project-progress.yaml" }
+            $ctx = Get-Content "project-context.md" -Raw
+            if ($ctx -notmatch 'project_name: ''测试项目''') { throw "project-context 占位符未替换" }
+            $prog = Get-Content "project-progress.yaml" -Raw
+            if ($prog -notmatch 'project: "测试项目"') { throw "project-progress 占位符未替换" }
+            Write-Host "✅ init 端到端通过"
+          } finally {
+            Pop-Location
+            Remove-Item -Path $Tmp -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: 端到端 verify JSON 输出
+        shell: pwsh
+        run: |
+          $Tmp = Join-Path $env:TEMP "delivery-flow-test-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $Tmp | Out-Null
+          Push-Location $Tmp
+          try {
+            $output = & "$env:GITHUB_WORKSPACE\setup-verify.ps1" -Json | ConvertFrom-Json
+            if (-not $output.results) { throw "缺 results 字段" }
+            if (-not $output.has_error) { throw "缺 has_error 字段" }
+            if ($output.has_error -ne $true) { throw "空目录 has_error 应为 true" }
+            Write-Host "✅ JSON 输出合法：$($output.results.Count) 项结果"
+          } finally {
+            Pop-Location
+            Remove-Item -Path $Tmp -Recurse -Force -ErrorAction SilentlyContinue
+          }
