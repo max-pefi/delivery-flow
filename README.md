@@ -37,7 +37,7 @@ Layer2 上手编排（”装上就跑”入口）
   └─ delivery-onboarding   识别角色 → 确保基座就位 → 发放角色依据 → 路由到对应阶段
 ```
 
-### 当前 Skill 清单（20 个）
+### 当前 Skill 清单（21 个）
 
 - **上手与编排**：`delivery-bootstrap`、`delivery-onboarding`
 - **售前与签约**：`delivery-presales`、`delivery-crm-sync`、`delivery-deal-gate`
@@ -45,6 +45,7 @@ Layer2 上手编排（”装上就跑”入口）
 - **质量与交付**：`delivery-eval-loop`、`delivery-acceptance-gate`
 - **项目管理与治理**：`delivery-plan`、`delivery-governance`、`delivery-phase-gate`、`delivery-report`
 - **本地只读检查**：`delivery-check`、`delivery-trace`、`delivery-status`、`delivery-dry-run`、`delivery-step-status`（进度巡检 + 撤回辅助）
+- **项目布局助手**：`delivery-project-layout`（扫项目根 + 阶段目录，出主题类目建议，不动文件）
 
 > Skill 数量以仓库 `skills/*/SKILL.md` 为准；BMAD、Superpowers、`lark-*` 属于外部依赖，不计入本插件数量。
 
@@ -71,6 +72,136 @@ Layer2 上手编排（”装上就跑”入口）
 | **从零安装引导** | **本模块 delivery-bootstrap** |
 
 > BMAD 的产品与规划能力全开；`sprint-status.yaml` 不作为本地写端，仅由 `delivery-sprint-sync` 从飞书单向刷新。
+
+## 新人 3 分钟上手
+
+> 第一次用 delivery-flow？只看这一节即可。细节见后续章节。
+
+### 一、装好插件（只做一次）
+
+```bash
+# 1. 把插件 clone 到本地固定路径（建议 D:/tools/delivery-flow）
+git clone https://github.com/fredsimas782-jpg/delivery-flow.git D:/tools/delivery-flow
+```
+
+### 二、新建项目（每个新项目做一次）
+
+#### 一键脚本（推荐）
+
+**Git Bash / macOS / Linux**：
+```bash
+mkdir D:/code/我的新项目 && cd D:/code/我的新项目
+bash <(curl -fsSL https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup.sh) \
+  --plugin-path D:/tools/delivery-flow
+```
+
+需要同时装 BMAD（推荐）：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup.sh) \
+  --plugin-path D:/tools/delivery-flow \
+  --bmad \
+  --bmad-tools claude-code \
+  --bmad-timeout 600
+```
+
+**一步到位**（推荐新项目用）：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup.sh) \
+  --plugin-path D:/tools/delivery-flow \
+  --bmad --init
+```
+
+加 `--init` 会顺便把 `project-context.md` 和 `project-progress.yaml` 从 `templates/` 复制到项目根，**替换 `{{项目名}}` 为当前目录名**。开 AI 第一句话就能直接 `delivery progress` 跑起来，不用再手填。
+
+**PowerShell / Windows**：
+```powershell
+New-Item -ItemType Directory D:\code\我的新项目 | Out-Null; cd D:\code\我的新项目
+irm https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup.ps1 | iex `
+  -PluginPath D:\tools\delivery-flow
+```
+
+需要同时装 BMAD：
+
+```powershell
+irm https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup.ps1 | iex `
+  -PluginPath D:\tools\delivery-flow `
+  -Bmad `
+  -BmadTools claude-code `
+  -BmadTimeout 600
+```
+
+**一步到位**：
+
+```powershell
+irm https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup.ps1 | iex `
+  -PluginPath D:\tools\delivery-flow `
+  -Bmad -Init
+```
+
+脚本会自动生成 `AGENTS.md`、`.claude/plugins/` 软链接、`.cursor/rules/`、`.windsurf/rules/`，**一行命令完成所有配置**。加 `--bmad` 后还会自动调用 `npx bmad-method install` 把 BMAD 装到当前目录（首次需要联网下载包，约 1-3 分钟）。
+
+#### 手动三步（如果不跑脚本）
+
+```bash
+# 1. 复制精简版 AGENTS.md 到项目根（改第 3 行路径为 D:/tools/delivery-flow）
+# 2. 建软链接
+mkdir -p .claude/plugins
+ln -s /d/tools/delivery-flow .claude/plugins/delivery-flow
+# 3. 验证：ls .claude/plugins/delivery-flow/skills/ 应看到 21 个 skill 目录
+```
+
+#### 先 dry-run 看一眼要做什么（推荐）
+
+```bash
+bash setup.sh --plugin-path D:/tools/delivery-flow --bmad --init --dry-run
+```
+
+脚本只打印「将要创建/修改哪些文件」+「将要执行的命令」，**不实际执行**。确认无误后去掉 `--dry-run` 真跑。
+
+#### 装完跑一遍 verify（可选但推荐）
+
+```bash
+# Git Bash
+bash <(curl -fsSL https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup-verify.sh)
+# PowerShell
+irm https://raw.githubusercontent.com/fredsimas782-jpg/delivery-flow/main/setup-verify.ps1 | iex
+# 加 --json / -Json 给 AI 解析
+```
+
+脚本会扫7 项关键配置并分色打印：✅ OK / ⚠️ WARN / ❌ ERROR / ℹ️ INFO。退出码：
+- `0` — 全 OK，AI 可直接接管
+- `1` — 有 WARN，功能可用但建议补齐
+- `2` — 有 ERROR，必须修复（通常是软链接不可达）
+
+**AI 排错入口**：在 Claude Code 里说「帮我 verify 一下当前配置」，AI 跑 `--json` 自动识别问题。
+
+### 三、打开 AI 工具，第一句话
+
+> "按 AGENTS.md 走，现在到哪了"
+
+AI 会自动：
+1. 读 `AGENTS.md` → 加载 delivery-flow 路径
+2. 调 `delivery progress` → 拿当前阶段
+3. 复述 `next_action_suggestion.suggested_question` 给你
+
+### 四、之后每个新对话
+
+```
+你说话              AI 干活              你确认
+─────────────────────────────────────────────
+"我是 PM，做 PRD"   调 BMAD write-prd   "继续"
+"客户签字了"        调 client-gate      签字记录模板
+"下一步"            调 dry-run 列出操作  "OK"
+"撤回"              调 delivery revert  看回退结果
+```
+
+### 完整工作流（21 个关卡）
+
+详见下方「## 安装」起的全部章节。日常使用只需记住**三步循环**（见末尾「## 日常使用三步循环」）。
+
+---
 
 ## 安装
 
@@ -173,9 +304,9 @@ npx bmad-method install
 3. `delivery progress --root . --json` 拿下一步建议
 4. 选关键产物补建——缺失 SPEC 跑 `bmad-spec` 重生成、缺失客户确认走 `delivery-client-gate` B 入口
 
-AI 协助整理脚本入口：说「整理混乱项目」触发扫描 + 产出「现状快照.md」。
+AI 协助整理脚本入口：说「整理混乱项目」触发 `delivery-project-layout` skill，AI 调 `delivery layout --root . --json` 只读扫描，把建议清单念给人听，**插件不创建文件也不移动文件**——执行由人确认后手动 `mv` 或未来 `--apply` 选项。
 
-完整规则见 [delivery-onboarding/SKILL.md](skills/delivery-onboarding/SKILL.md)。
+完整规则见 [delivery-project-layout/SKILL.md](skills/delivery-project-layout/SKILL.md)。
 
 ## 本地 CLI 与 dry-run
 
@@ -193,6 +324,8 @@ delivery plan --root <项目根> --json
 delivery governance --root <项目根> --json
 delivery report --root <项目根> --json
 delivery revert --root <项目根> [--step <stage_id>] --json
+delivery layout --root <项目根> --json
+delivery stage-next --root <项目根> --json
 ```
 
 **方式 B（未安装）**：用仓库根的 `delivery.py` 启动器：
@@ -206,6 +339,8 @@ python "${CLAUDE_PLUGIN_ROOT}/delivery.py" plan --root <项目根> --json
 python "${CLAUDE_PLUGIN_ROOT}/delivery.py" governance --root <项目根> --json
 python "${CLAUDE_PLUGIN_ROOT}/delivery.py" report --root <项目根> --json
 python "${CLAUDE_PLUGIN_ROOT}/delivery.py" revert --root <项目根> [--step <stage_id>] --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" layout --root <项目根> --json
+python "${CLAUDE_PLUGIN_ROOT}/delivery.py" stage-next --root <项目根> --json
 ```
 
 `check` 会检查四态证据（`pass / unknown / fail`）、关卡顺序和已启用的计划/治理门禁；模板或缺证据不会算通过。`plan` 读取 `project-plan.json`，计算当前阶段、可开始阶段和依赖阻塞；`governance` 读取 `project-governance.json`；`report` 聚合计划、治理、流水线和飞书只读镜像。`dry-run` 只生成 `create / update / skip / orphan / create_with_review` 计划（基于 `desired-tasks.json` × `_映射表.json` 二维判定），真实飞书写入仍由外部 `lark-*` 技能负责。`trace` 是**文件级产物链完整性检查**（不解析 SPEC Capability / Story AC 字段语义）。
