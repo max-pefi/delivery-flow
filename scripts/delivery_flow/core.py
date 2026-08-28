@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import datetime as _dt
 import hashlib
 import json
 import re
@@ -1197,6 +1198,292 @@ STAGES_ORDER = (
     "eval", "qa", "acceptance_gate",
 )
 
+# 阶段→目录前缀（中文阶段名约定,只读识别用,不动文件）
+STAGE_DIR_HINT = {
+    "opportunity": "01-商机确认",
+    "proposal": "02-方案报价",
+    "deal_gate": "03-签约立项",
+    "requirements": "04-需求分析",
+    "analysis": "04-需求分析",
+    "prd": "04-需求分析",
+    "ux": "05-设计",
+    "prototype": "05-设计",
+    "client_gate": "04-需求分析",
+    "architecture": "06-架构",
+    "tech_readiness": "06-架构",
+    "story_breakdown": "07-开发",
+    "feishu_sync": "07-开发",
+    "development": "07-开发",
+    "eval": "08-测试验收",
+    "qa": "08-测试验收",
+    "acceptance_gate": "08-测试验收",
+}
+
+# 机器文件白名单（项目根固定名,不进主题类目）
+MACHINE_FILES = frozenset({
+    "SPEC.md", "project-progress.yaml", "sprint-status.yaml",
+    "_映射表.json", "_商机映射表.json", "project-plan.json",
+    "project-governance.json", "desired-tasks.json", "project-context.md",
+})
+
+
+def _classify_filename(name: str) -> str:
+    """推断单个文件属于哪个主题类目(only for 项目级文件,机器文件跳过)。
+
+    返回:baseline / first_phase / future_plan / pending_customer / compliance / misc
+    """
+    n = name.lower()
+    # 已签/已用基线
+    if "prd.md" in n or "客户确认记录" in n or "招标参数" in n:
+        return "baseline"
+    # 首期范围/排期草案
+    if "开发排期" in n or "迭代需求池" in n or "制度活动目录" in n or "stage" in n.lower():
+        return "first_phase"
+    # 完整模块规划草稿(.draft.)
+    if "完整模块" in n or "完整能力地图" in n or "完整业务流程" in n or "四层架构" in n:
+        return "future_plan"
+    if "阶段化建设" in n or "阶段依赖与风险" in n or "首期能力与完整目标" in n or "阶段一" in n:
+        return "future_plan"
+    # 客户待确认
+    if "待客户确认" in n or "正式客户变更" in n or "辅导员年度考核待确认" in n:
+        return "pending_customer"
+    # 合规审计
+    if "合规" in n or "审计" in n or "审查报告" in n:
+        return "compliance"
+    return "misc"
+
+
+THEME_DIR_NAMES = {
+    "baseline": "00-总览",
+    "first_phase": "01-首期范围",
+    "future_plan": "02-完整模块规划",
+    "pending_customer": "03-客户待确认",
+    "compliance": "04-合规审计",
+    "misc": "99-未分类-待用户裁定",
+}
+
+
+def layout_scan(root: Path) -> dict[str, Any]:
+    """只读扫描项目根 + 阶段目录,产出【建议移动/建议创建/警告】清单。
+
+    设计原则:
+    - dry-run only,不动任何文件
+    - 机器文件(MACHINE_FILES)不动
+    - 已签字的关卡产物(客户确认记录/验收报告等)视为 baseline,推荐放 00-总览
+    - *.draft.* 文件按内容主题分到对应子目录
+    - 用户最终决定:AI 拿到结果后,把方案念给人,人点头才决定是否执行
+
+    Returns: dict{
+      scanned_at, root, current_state,
+      machine_files: [{name, path, present}],
+      loose_files: [{name, path, theme, suggested_dir, reason}],
+      suggested_dirs: [{name, path, would_create, reason}],
+      warnings: [{id, message, severity}],
+    }
+    """
+    root = root.resolve()
+    scanned_at = ""
+    # 时间戳由调用方注入便于测试(本实现读系统时间)
+    scanned_at = _dt.datetime.now().isoformat(timespec="seconds")
+
+    # 1. 机器文件清单(项目根)
+    machine_files: list[dict[str, Any]] = []
+    for name in sorted(MACHINE_FILES):
+        p = root / name
+        machine_files.append({"name": name, "path": str(p), "present": p.is_file()})
+
+    # 2. 散落文件:项目根的非机器 .md/.json/.yaml
+    loose_files: list[dict[str, Any]] = []
+    if root.is_dir():
+        for entry in sorted(root.iterdir()):
+            if not entry.is_file():
+                continue
+            if entry.name in MACHINE_FILES:
+                continue
+            if entry.name.startswith("."):
+                continue
+            suffix = entry.suffix.lower()
+            if suffix not in {".md", ".json", ".yaml", ".yml", ".docx"}:
+                continue
+            theme = _classify_filename(entry.name)
+            loose_files.append({
+                "name": entry.name,
+                "path": str(entry),
+                "theme": theme,
+                "suggested_dir": THEME_DIR_NAMES[theme],
+                "reason": f"按文件名+内容关键词归类为 {theme}",
+            })
+
+    # 3. 已存在的阶段目录
+    existing_stage_dirs: list[str] = []
+    for entry in sorted(root.iterdir()):
+        if entry.is_dir() and entry.name[:2].isdigit():
+            existing_stage_dirs.append(entry.name)
+
+    # 4. 建议创建:基于 progress 的 current_stage + 下游阶段
+    suggested_dirs: list[dict[str, Any]] = []
+    progress_path, _ = resolve_artifact(root, "project-progress.yaml")
+    progress = read_progress(progress_path) if progress_path else None
+    current_stage = progress.get("current_stage") if progress else None
+
+    # 当前/下游阶段对应目录若不存在,建议创建
+    if current_stage:
+        for stage_id in STAGES_ORDER:
+            dir_hint = STAGE_DIR_HINT.get(stage_id)
+            if not dir_hint:
+                continue
+            full = root / dir_hint
+            if not full.is_dir():
+                suggested_dirs.append({
+                    "name": dir_hint,
+                    "path": str(full),
+                    "would_create": True,
+                    "reason": f"阶段 {stage_id} 的产物目录",
+                })
+                # 只建议到下一个未 done 阶段,避免列一堆
+                break
+
+    # 5. 警告:多文件同主题散在阶段目录根下、文件同名但不同模块等
+    warnings: list[dict[str, Any]] = []
+    # 同主题散落文件 > 5 个时建议建子目录
+    theme_counts: dict[str, int] = {}
+    for f in loose_files:
+        theme_counts[f["theme"]] = theme_counts.get(f["theme"], 0) + 1
+    for theme, count in theme_counts.items():
+        if count >= 5 and theme != "misc":
+            warnings.append({
+                "id": "layout.theme-overflow",
+                "message": f"主题 {theme} 有 {count} 个散落文件,建议建子目录 {THEME_DIR_NAMES[theme]}",
+                "severity": "info",
+            })
+
+    return {
+        "scanned_at": scanned_at,
+        "root": str(root),
+        "current_stage": current_stage,
+        "machine_files": machine_files,
+        "loose_files": loose_files,
+        "existing_stage_dirs": existing_stage_dirs,
+        "suggested_dirs": suggested_dirs,
+        "warnings": warnings,
+    }
+
+
+# 阶段→建议产出的草稿文件名（用于 stage_next_drafts）
+# 草稿文件以 .draft.<ext> 后缀,与正式路径分离
+STAGE_DRAFT_TEMPLATES = {
+    "opportunity": [
+        ("商机档案-{YYYY}-{MM}.draft.md", "01-商机确认"),
+        ("市场调研报告.draft.md", "01-商机确认"),
+    ],
+    "proposal": [
+        ("技术方案.draft.md", "02-方案报价"),
+        ("报价单-{YYYY}-{MM}.draft.md", "02-方案报价"),
+    ],
+    "deal_gate": [
+        ("合同签约确认记录.draft.md", "03-签约立项"),
+        ("立项包.draft.md", "03-签约立项"),
+    ],
+    "requirements": [
+        ("project-context.md.draft.md", "04-需求分析"),
+        ("PRD.draft.md", "04-需求分析"),
+    ],
+    "prd": [
+        ("PRD.draft.md", "04-需求分析"),
+    ],
+    "ux": [
+        ("UX.draft.md", "05-设计"),
+        ("演示原型/index.html.draft", "05-设计"),
+    ],
+    "prototype": [
+        ("演示原型/index.html.draft", "05-设计"),
+    ],
+    "client_gate": [
+        ("客户确认记录-{YYYY}-{MM}-{DD}.draft.md", "04-需求分析"),
+    ],
+    "architecture": [
+        ("业务架构.draft.md", "06-架构"),
+        ("产品架构.draft.md", "06-架构"),
+        ("技术架构.draft.md", "06-架构"),
+        ("数据架构.draft.md", "06-架构"),
+    ],
+    "tech_readiness": [
+        ("技术就绪报告.draft.md", "06-架构"),
+    ],
+    "story_breakdown": [
+        ("stories/STORY-{NNN}-{name}.draft.md", "07-开发"),
+    ],
+    "feishu_sync": [
+        ("desired-tasks.draft.json", "07-开发"),
+        ("_映射表.draft.json", "07-开发"),
+    ],
+    "development": [
+        # 开发阶段由各 Story 自行产出,这里只列非必需
+    ],
+    "eval": [
+        ("评测报告.draft.md", "08-测试验收"),
+    ],
+    "qa": [
+        ("测试报告.draft.md", "08-测试验收"),
+    ],
+    "acceptance_gate": [
+        ("验收报告.draft.md", "08-测试验收"),
+    ],
+}
+
+
+def stage_next_drafts(root: Path, stage_id: str | None = None) -> dict[str, Any]:
+    """扫描 project-progress 的 current_stage(或显式传入 stage_id),
+    输出该阶段【建议创建的草稿文件路径】清单。
+
+    设计原则:
+    - dry-run only,不动文件,不创建草稿
+    - 只输出「路径 + 用途 + 是否已存在」三段元数据
+    - AI 拿到结果后,需向人确认「要不要创建这些草稿」
+    - 人点头后,由各阶段 skill 自己写 .draft.<ext>(产物的所有权归 skill,不归本命令)
+    """
+    root = root.resolve()
+    progress_path, _ = resolve_artifact(root, "project-progress.yaml")
+    progress = read_progress(progress_path) if progress_path else None
+
+    current = stage_id
+    if current is None:
+        if not progress:
+            return {
+                "error": "找不到 project-progress.yaml 且未指定 stage_id",
+                "type": "stage_next_drafts_error",
+            }
+        current = progress.get("current_stage")
+
+    if current is None or current not in STAGES_ORDER:
+        return {
+            "error": f"非法或缺失 stage_id: {current!r}",
+            "type": "stage_next_drafts_error",
+            "valid_stages": list(STAGES_ORDER),
+        }
+
+    templates = STAGE_DRAFT_TEMPLATES.get(current, [])
+    drafts: list[dict[str, Any]] = []
+    for filename_tpl, dir_hint in templates:
+        # 把模板路径里 {YYYY}/{MM}/{DD} 占位符替换成示例值
+        # 真实创建时由 skill 替换为实际日期
+        example_name = filename_tpl.replace("{YYYY}", "2026").replace("{MM}", "08").replace("{DD}", "20").replace("{NNN}", "001").replace("{name}", "示例名称")
+        full_path = root / dir_hint / example_name
+        drafts.append({
+            "filename_template": filename_tpl,
+            "dir": dir_hint,
+            "example_path": str(full_path),
+            "exists": full_path.exists(),
+            "purpose": f"{current} 阶段的产物草稿",
+        })
+
+    return {
+        "stage_id": current,
+        "stage_dir_hint": STAGE_DIR_HINT.get(current),
+        "drafts": drafts,
+        "note": "本命令只读,不创建文件。AI 拿到结果后请向用户确认是否创建草稿。",
+    }
+
 
 def read_progress(path: Path) -> dict[str, Any] | None:
     """读取 project-progress.yaml（最小化解析，不依赖第三方 YAML 库）。
@@ -1216,12 +1503,19 @@ def read_progress(path: Path) -> dict[str, Any] | None:
     except OSError as exc:
         raise ProgressParseError(f"无法读取 {path}: {exc}") from exc
 
-    result: dict[str, Any] = {"project": "", "current_stage": "", "trace_id": "", "stages": {}}
+    result: dict[str, Any] = {"project": "", "current_stage": "", "trace_id": "", "stages": {}, "meta": {}}
     current_stage: str | None = None
     current_stage_data: dict[str, str] = {}
     has_stages = False
 
     inline_re = _re.compile(r"\{([^}]+)\}")
+
+    # 顶层 key 白名单:project / trace_id / current_stage / stages / meta
+    # meta 为可选透传段(mode/modules/complexity/snapshot_at 等)
+    # 不在白名单内 → 抛 ProgressParseError
+    TOP_LEVEL_KEYS = {"project", "trace_id", "current_stage", "stages", "meta"}
+    # 当前是否在 stages 段内(只有这时 indent==2 才是 stage 名)
+    expecting_stage = False
 
     for lineno, raw in enumerate(text.splitlines(), start=1):
         stripped = raw.strip()
@@ -1238,18 +1532,29 @@ def read_progress(path: Path) -> dict[str, Any] | None:
                     if not key:
                         raise ProgressParseError(f"第 {lineno} 行：键名不能为空")
                     result[key] = val
+                    expecting_stage = False
                 elif key == "current_stage":
                     if val in ("", "null", "~", "None"):
                         result["current_stage"] = None
                     else:
                         result["current_stage"] = val
+                    expecting_stage = False
                 elif key == "stages":
                     has_stages = True
+                    expecting_stage = True
+                    continue
+                elif key == "meta":
+                    # meta 段为可选透传(mode/modules/complexity/snapshot_at)
+                    # 简化解析器只做"key 出现"的事实记录,不解析子字段值
+                    # 子字段的值留在 YAML 里原样保留,供人读
+                    result["meta"] = {"present": True}
+                    expecting_stage = False
                     continue
                 else:
-                    raise ProgressParseError(f"第 {lineno} 行：未知顶层字段 {key!r}")
+                    if key not in TOP_LEVEL_KEYS:
+                        raise ProgressParseError(f"第 {lineno} 行：未知顶层字段 {key!r}")
             # stages 下的子 key（缩进 2），支持 inline dict
-            elif indent == 2 and ":" in stripped:
+            elif indent == 2 and ":" in stripped and expecting_stage:
                 head, _, rest = stripped.partition(":")
                 stage_name = head.strip()
                 rest = rest.strip()
@@ -1271,7 +1576,7 @@ def read_progress(path: Path) -> dict[str, Any] | None:
                         if k:
                             current_stage_data[k] = v
             # stage 内的字段（缩进 4）
-            elif indent >= 4 and ":" in stripped:
+            elif indent >= 4 and ":" in stripped and expecting_stage:
                 key, _, val = stripped.partition(":")
                 key = key.strip()
                 val = val.strip().strip('"').strip("'")

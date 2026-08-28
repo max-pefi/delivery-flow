@@ -13,10 +13,12 @@ from .core import (
     current_stage_summary,
     dry_run,
     governance_summary,
+    layout_scan,
     next_action_suggestion,
     plan_summary,
     project_health_report,
     revert_step,
+    stage_next_drafts,
     status_summary,
     summarize_findings,
     trace_project,
@@ -44,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="delivery-flow 本地只读一致性检查工具")
     parser.add_argument(
         "command",
-        choices=("check", "trace", "status", "dry-run", "progress", "plan", "governance", "report", "revert"),
+        choices=("check", "trace", "status", "dry-run", "progress", "plan", "governance", "report", "revert", "layout", "stage-next"),
     )
     parser.add_argument("--root", default=".", help="消费方项目根目录")
     parser.add_argument("--json", action="store_true", help="输出机器可读 JSON")
@@ -184,6 +186,16 @@ def main(argv: list[str] | None = None) -> int:
             return EXIT_BLOCKED if payload.get("health") == "blocked" else EXIT_OK
         if args.command == "revert":
             payload = revert_step(root, args.step)
+            emit(payload, args.json)
+            return EXIT_OK if not payload.get("error") else EXIT_INPUT
+        if args.command == "layout":
+            # 只读扫描项目布局,出建议清单(不移动任何文件)
+            payload = layout_scan(root)
+            emit(payload, args.json)
+            return EXIT_OK
+        if args.command == "stage-next":
+            # 输出当前阶段建议创建的草稿路径清单(不创建任何文件)
+            payload = stage_next_drafts(root)
             emit(payload, args.json)
             return EXIT_OK if not payload.get("error") else EXIT_INPUT
         return EXIT_INPUT

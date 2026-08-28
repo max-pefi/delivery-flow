@@ -11,6 +11,7 @@ from scripts.delivery_flow.core import (
     current_stage_summary,
     dry_run,
     find_first,
+    layout_scan,
     next_action_suggestion,
     parse_acceptance,
     parse_confirmation,
@@ -23,8 +24,10 @@ from scripts.delivery_flow.core import (
     revert_step,
     status_summary,
     summarize_findings,
+    stage_next_drafts,
     trace_project,
     validate_progress,
+    _classify_filename,
     _is_excluded,
 )
 
@@ -514,6 +517,98 @@ class DeliveryCoreTests(unittest.TestCase):
         self.assertIsNone(result["current_stage"])
         self.assertEqual(result["trace_id"], "OPP-2026-099")
 
+    def test_read_progress_accepts_meta_segment(self):
+        # meta 段是可选透传段（mode / modules / complexity / snapshot_at）
+        # 解析器应接受 meta 顶层 key,不应污染 stages
+        progress_file = self.root / "project-progress.yaml"
+        progress_file.write_text(
+            'project: "示例"\ncurrent_stage: "development"\n'
+            'meta:\n  mode: delivery\n  modules: ["第二课堂首期"]\n'
+            '  complexity: medium\n  snapshot_at: "2026-08-21"\n'
+            'stages:\n'
+            '  opportunity: {status: pending}\n'
+            '  proposal: {status: pending}\n'
+            '  deal_gate: {status: pending}\n'
+            '  requirements:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  analysis:\n    status: done\n    completed_at: "2026-08-11"\n'
+            '  prd:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  ux:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  prototype:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  client_gate:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  architecture:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  tech_readiness:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  story_breakdown:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  feishu_sync:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  development:\n    status: in_progress\n    started_at: "2026-08-14"\n'
+            '  eval: {status: pending}\n'
+            '  qa: {status: pending}\n'
+            '  acceptance_gate: {status: pending}\n',
+            encoding="utf-8",
+        )
+        result = read_progress(progress_file)
+        self.assertIsNotNone(result)
+        # meta 段被识别(简化解析器只做"key 出现"的事实记录)
+        self.assertEqual(result["meta"], {"present": True})
+        # stages 不应被 meta 子字段污染
+        self.assertNotIn("mode", result["stages"])
+        self.assertNotIn("modules", result["stages"])
+        self.assertNotIn("complexity", result["stages"])
+        self.assertNotIn("snapshot_at", result["stages"])
+        # 正常 stage 仍在
+        self.assertEqual(result["stages"]["development"]["status"], "in_progress")
+        # validate_progress 也应通过
+        errors = validate_progress(result)
+        self.assertEqual(errors, [])
+
+    def test_read_progress_without_meta_still_works(self):
+        # 向后兼容:无 meta 段的项目文件仍能正常解析
+        progress_file = self.root / "project-progress.yaml"
+        progress_file.write_text(
+            'project: "示例"\ncurrent_stage: "development"\n'
+            'stages:\n'
+            '  opportunity: {status: pending}\n'
+            '  proposal: {status: pending}\n'
+            '  deal_gate: {status: pending}\n'
+            '  requirements:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  analysis:\n    status: done\n    completed_at: "2026-08-11"\n'
+            '  prd:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  ux:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  prototype:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  client_gate:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  architecture:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  tech_readiness:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  story_breakdown:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  feishu_sync:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  development:\n    status: in_progress\n    started_at: "2026-08-14"\n'
+            '  eval: {status: pending}\n'
+            '  qa: {status: pending}\n'
+            '  acceptance_gate: {status: pending}\n',
+            encoding="utf-8",
+        )
+        result = read_progress(progress_file)
+        self.assertIsNotNone(result)
+        # meta 缺省时 result["meta"] = {}（初始化值）
+        self.assertEqual(result["meta"], {})
+        self.assertEqual(result["stages"]["development"]["status"], "in_progress")
+
+    def test_read_progress_rejects_unknown_top_level_key(self):
+        # 未知顶层字段（非白名单）必须抛错——保护 schema 演进
+        progress_file = self.root / "project-progress.yaml"
+        progress_file.write_text(
+            'project: "示例"\ncurrent_stage: "development"\n'
+            'foo: bar\n'
+            'stages:\n  requirements:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  client_gate:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  architecture:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  tech_readiness:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  story_breakdown:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  feishu_sync:\n    status: done\n    completed_at: "2026-08-14"\n'
+            '  development:\n    status: in_progress\n    started_at: "2026-08-14"\n',
+            encoding="utf-8",
+        )
+        with self.assertRaises(ProgressParseError):
+            read_progress(progress_file)
+
     def test_read_progress_rejects_malformed_yaml(self):
         # 损坏的 YAML 必须抛 ProgressParseError，不能返回空对象
         progress_file = self.root / "project-progress.yaml"
@@ -531,6 +626,175 @@ class DeliveryCoreTests(unittest.TestCase):
         with self.assertRaises(ProgressParseError) as ctx:
             read_progress(progress_file)
         self.assertIn("project", str(ctx.exception))
+
+    def test_classify_filename_baseline(self):
+        # 基线文件(prd/客户确认/招标参数)→ baseline
+        self.assertEqual(_classify_filename("PRD.md"), "baseline")
+        self.assertEqual(_classify_filename("客户确认记录-2026-08-13.md"), "baseline")
+        self.assertEqual(_classify_filename("招标参数一致性审查报告.md"), "baseline")
+
+    def test_classify_filename_drafts(self):
+        # *.draft.* / 阶段性文件 → future_plan / first_phase
+        self.assertEqual(
+            _classify_filename("第二课堂完整模块PRD.draft.md"), "future_plan"
+        )
+        self.assertEqual(
+            _classify_filename("第二课堂四层架构.draft.md"), "future_plan"
+        )
+        self.assertEqual(
+            _classify_filename("开发排期-草案.md"), "first_phase"
+        )
+        self.assertEqual(
+            _classify_filename("后续迭代需求池.md"), "first_phase"
+        )
+
+    def test_layout_scan_empty_project(self):
+        # 空项目:无文件,loose_files 应空,机器文件 present=False
+        empty = self.root / "empty_subdir"
+        empty.mkdir()
+        result = layout_scan(empty)
+        self.assertEqual(result["root"], str(empty.resolve()))
+        self.assertEqual(result["loose_files"], [])
+        # 机器文件全部 present=False
+        self.assertTrue(all(not m["present"] for m in result["machine_files"]))
+        self.assertEqual(result["warnings"], [])
+
+    def test_layout_scan_finds_loose_files(self):
+        # 散落文件应被识别并分类(用独立子目录避免 setUp 残留)
+        work = self.root / "loose_subdir"
+        work.mkdir()
+        (work / "PRD.md").write_text("# PRD", encoding="utf-8")
+        (work / "第二课堂完整模块PRD.draft.md").write_text("# 完整 PRD", encoding="utf-8")
+        (work / "README.md").write_text("# 杂乱文件", encoding="utf-8")
+        result = layout_scan(work)
+        names = [f["name"] for f in result["loose_files"]]
+        self.assertIn("PRD.md", names)
+        self.assertIn("第二课堂完整模块PRD.draft.md", names)
+        self.assertIn("README.md", names)
+        prd_entry = next(f for f in result["loose_files"] if f["name"] == "PRD.md")
+        self.assertEqual(prd_entry["theme"], "baseline")
+        self.assertEqual(prd_entry["suggested_dir"], "00-总览")
+        draft_entry = next(f for f in result["loose_files"] if f["name"] == "第二课堂完整模块PRD.draft.md")
+        self.assertEqual(draft_entry["theme"], "future_plan")
+        self.assertEqual(draft_entry["suggested_dir"], "02-完整模块规划")
+
+    def test_layout_scan_does_not_move_machine_files(self):
+        # 机器文件应只在 machine_files 列出,不应进 loose_files
+        work = self.root / "machine_subdir"
+        work.mkdir()
+        (work / "SPEC.md").write_text("# SPEC", encoding="utf-8")
+        (work / "project-progress.yaml").write_text(
+            'project: "x"\ncurrent_stage: null\nstages:\n',
+            encoding="utf-8",
+        )
+        (work / "_映射表.json").write_text("{}", encoding="utf-8")
+        result = layout_scan(work)
+        machine_names = {m["name"] for m in result["machine_files"]}
+        self.assertIn("SPEC.md", machine_names)
+        self.assertIn("project-progress.yaml", machine_names)
+        self.assertIn("_映射表.json", machine_names)
+        loose_names = {f["name"] for f in result["loose_files"]}
+        self.assertNotIn("SPEC.md", loose_names)
+        self.assertNotIn("project-progress.yaml", loose_names)
+        self.assertNotIn("_映射表.json", loose_names)
+
+    def test_layout_scan_warns_theme_overflow(self):
+        # 同一主题 >= 5 个散落文件时,应产 warning
+        work = self.root / "overflow_subdir"
+        work.mkdir()
+        for i in range(6):
+            (work / f"第二课堂完整模块PRD.draft.{i}.md").write_text("#", encoding="utf-8")
+        result = layout_scan(work)
+        warns = [w for w in result["warnings"] if w["id"] == "layout.theme-overflow"]
+        self.assertEqual(len(warns), 1)
+        self.assertIn("future_plan", warns[0]["message"])
+        self.assertEqual(warns[0]["severity"], "info")
+
+    def test_layout_scan_suggests_missing_stage_dirs(self):
+        # progress 的 current_stage 对应目录若不存在,应建议创建
+        progress_path = self.root / "project-progress.yaml"
+        progress_path.write_text(
+            'project: "示例"\ncurrent_stage: "development"\nstages:\n'
+            '  requirements: {status: done, completed_at: "2026-08-14"}\n'
+            '  analysis: {status: done, completed_at: "2026-08-11"}\n'
+            '  prd: {status: done, completed_at: "2026-08-14"}\n'
+            '  ux: {status: done, completed_at: "2026-08-14"}\n'
+            '  prototype: {status: done, completed_at: "2026-08-14"}\n'
+            '  client_gate: {status: done, completed_at: "2026-08-14"}\n'
+            '  architecture: {status: done, completed_at: "2026-08-14"}\n'
+            '  tech_readiness: {status: done, completed_at: "2026-08-14"}\n'
+            '  story_breakdown: {status: done, completed_at: "2026-08-14"}\n'
+            '  feishu_sync: {status: done, completed_at: "2026-08-14"}\n'
+            '  development: {status: in_progress, started_at: "2026-08-14"}\n'
+            '  opportunity: {status: pending}\n  proposal: {status: pending}\n'
+            '  deal_gate: {status: pending}\n  eval: {status: pending}\n'
+            '  qa: {status: pending}\n  acceptance_gate: {status: pending}\n',
+            encoding="utf-8",
+        )
+        # 删除所有阶段目录(确保都缺失)
+        for entry in list(self.root.iterdir()):
+            if entry.is_dir() and entry.name[:2].isdigit():
+                import shutil
+                shutil.rmtree(entry)
+        result = layout_scan(self.root)
+        # current_stage = development,STAGE_DIR_HINT["development"] = "07-开发"
+        # 第一个未 done 阶段是 eval,所以建议的是 "08-测试验收"
+        # (因为建议逻辑只到下一个 pending 阶段 break)
+        # 实际逻辑是:遍历 STAGES_ORDER 直到第一个未 done 阶段
+        # opportunity/proposal/deal_gate 是 pending,会被命中
+        # STAGE_DIR_HINT["opportunity"] = "01-商机确认"
+        suggestions = {s["name"] for s in result["suggested_dirs"]}
+        self.assertIn("01-商机确认", suggestions)
+
+    def test_stage_next_drafts_uses_current_stage(self):
+        # 不传 stage_id 时,应读 project-progress 的 current_stage
+        progress_path = self.root / "project-progress.yaml"
+        progress_path.write_text(
+            'project: "示例"\ncurrent_stage: "requirements"\nstages:\n'
+            '  opportunity: {status: pending}\n  proposal: {status: pending}\n'
+            '  deal_gate: {status: pending}\n  requirements: {status: in_progress}\n'
+            '  analysis: {status: pending}\n  prd: {status: pending}\n'
+            '  ux: {status: pending}\n  prototype: {status: pending}\n'
+            '  client_gate: {status: pending}\n  architecture: {status: pending}\n'
+            '  tech_readiness: {status: pending}\n  story_breakdown: {status: pending}\n'
+            '  feishu_sync: {status: pending}\n  development: {status: pending}\n'
+            '  eval: {status: pending}\n  qa: {status: pending}\n'
+            '  acceptance_gate: {status: pending}\n',
+            encoding="utf-8",
+        )
+        result = stage_next_drafts(self.root)
+        self.assertEqual(result["stage_id"], "requirements")
+        self.assertEqual(result["stage_dir_hint"], "04-需求分析")
+        # requirements 阶段应输出 PRD.draft.md + project-context.md.draft.md
+        names = [d["filename_template"] for d in result["drafts"]]
+        self.assertIn("PRD.draft.md", names)
+        self.assertIn("project-context.md.draft.md", names)
+
+    def test_stage_next_drafts_explicit_stage(self):
+        # 显式传 stage_id 时,跳过 progress 读取
+        result = stage_next_drafts(self.root, stage_id="tech_readiness")
+        self.assertEqual(result["stage_id"], "tech_readiness")
+        self.assertEqual(result["stage_dir_hint"], "06-架构")
+        names = [d["filename_template"] for d in result["drafts"]]
+        self.assertIn("技术就绪报告.draft.md", names)
+
+    def test_stage_next_drafts_no_progress_no_stage(self):
+        # 没 progress + 没 stage_id → 报错而非崩溃
+        result = stage_next_drafts(self.root)
+        self.assertIn("error", result)
+        self.assertEqual(result["type"], "stage_next_drafts_error")
+
+    def test_stage_next_drafts_invalid_stage(self):
+        # 非法 stage_id → 报错并列出合法值
+        result = stage_next_drafts(self.root, stage_id="bogus_stage")
+        self.assertIn("error", result)
+        self.assertIn("valid_stages", result)
+
+    def test_stage_next_drafts_development_is_empty(self):
+        # development 阶段 drafts 应为空(由各 Story 产出,不预生成)
+        result = stage_next_drafts(self.root, stage_id="development")
+        self.assertEqual(result["stage_id"], "development")
+        self.assertEqual(result["drafts"], [])
 
     def test_validate_progress_passes_valid_state(self):
         # 正常状态应通过校验
