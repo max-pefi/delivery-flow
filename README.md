@@ -29,7 +29,7 @@ Layer1 本模块差异化交付能力（补 BMAD 未覆盖的业务关卡与编�
   ├─ delivery-acceptance-gate  出口：客户验收关卡（对签字范围核 KPI/DoD）
   └─ delivery-prototype-html    规划编排：将 BMAD UX 产物转为可交互 HTML 演示原型
 
-Layer2 上手编排（”装上就跑”入口）
+Layer2 上手编排（“装上就跑”入口）
   ├─ delivery-bootstrap    从零安装：环境检查 → 注册插件 → 装依赖 → 创建初始文件
   └─ delivery-onboarding   识别角色 → 确保基座就位 → 发放角色依据 → 路由到对应阶段
 ```
