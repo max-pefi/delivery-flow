@@ -1,0 +1,27 @@
+name: pilot-trigger
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: issue number
+        required: true
+      body:
+        description: comment body
+        required: true
+permissions:
+  issues: write
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.inputs.issue;
+            const body = context.payload.inputs.body;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(issue),
+              body: body
+            });
